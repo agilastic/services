@@ -1,12 +1,11 @@
 import { Singleton } from "../base/types";
 import { AxiosInstance } from "axios";
-import { IncyclistRestApiClient } from "../api";
+import { IncyclistRestApiClient, getServerUrl } from "../api";
 import { useUserSettings } from "../settings";
 import { IncyclistService } from "../base/service";
 import { Injectable } from "../base/decorators";
 
 const UPDATE_SERVER_URL = 'UPDATE_SERVER_URL'
-const DEFAULT_DOMAIN = 'incyclist.com'
 
 // update-check requests should fail fast rather than rely on an incidental
 // OS/network/proxy timeout - see FIXES_BACKLOG item #29
@@ -30,6 +29,10 @@ export class IncyclistUpdatesApi extends IncyclistService{
 
     async getLatestAppVersion(platform:string):Promise<VersionInfo> {
         this.logEvent( {message:'getLatestAppVersion'})
+        if (!this.getBaseUrl()) {
+            this.logEvent( {message:'update check disabled', reason:'no update server configured'})
+            return undefined
+        }
         try {
             if (platform==='darwin') {
                 return await this.getLatestMacAppVersion()
@@ -58,11 +61,12 @@ export class IncyclistUpdatesApi extends IncyclistService{
     }
 
 
-    protected getBaseUrl():string {
-        const domain = this.getSetting('DOMAIN',DEFAULT_DOMAIN)
-        const defaultUrl = `https://updates.${domain}`
-        const base:string = this.getSetting(UPDATE_SERVER_URL ,defaultUrl )
-        return base;
+    protected getBaseUrl():string|undefined {
+        return getServerUrl(this.getSetting.bind(this), UPDATE_SERVER_URL, 'updates')
+    }
+
+    protected getHomepageUrl():string|undefined {
+        return getServerUrl(this.getSetting.bind(this), undefined, '')
     }
 
     protected async _get(url:string, config:Record<string,any> = {}) {
@@ -91,7 +95,6 @@ export class IncyclistUpdatesApi extends IncyclistService{
     protected async getLatestMacAppVersion():Promise<VersionInfo>{
         try {
             const res = await this._get('/download/app/latest/mac/latest-mac' )
-            const domain = this.getSetting('DOMAIN',DEFAULT_DOMAIN)
 
             // istanbul ignore next
             if (!res)
@@ -100,7 +103,7 @@ export class IncyclistUpdatesApi extends IncyclistService{
             const version = res.data?.version
             const path = res.data?.path
             const downloadUrl = `${this.getBaseUrl()}/download/app/latest/mac/${path}`
-            const url = `https://${domain}`
+            const url = this.getHomepageUrl()
 
             return {version,path,url,downloadUrl}
         }
@@ -125,7 +128,6 @@ export class IncyclistUpdatesApi extends IncyclistService{
     protected async getLatestLinuxAppVersion():Promise<VersionInfo>{
         try {
         
-            const domain = this.getSetting('DOMAIN',DEFAULT_DOMAIN)
             const res = await this._get('/download/app/latest/linux/x64/latest-linux.yml' ) 
             // istanbul ignore next
             if (!res)
@@ -137,7 +139,7 @@ export class IncyclistUpdatesApi extends IncyclistService{
             const pathMatch = /path: (.*)/.exec(res.data)
             const path = pathMatch?.length===2 ? pathMatch[1] : undefined
             const downloadUrl = `${this.getBaseUrl()}/download/app/latest/linux/x64/${path}`
-            const url = `https://${domain}`
+            const url = this.getHomepageUrl()
 
             return {version,path,url,downloadUrl}
         }
@@ -152,7 +154,6 @@ export class IncyclistUpdatesApi extends IncyclistService{
     protected async getLatestWindowsAppVersion():Promise<VersionInfo>{
         try {
             const res = await this._get('/download/app/latest/win64/RELEASE' ) 
-            const domain = this.getSetting('DOMAIN',DEFAULT_DOMAIN)
             // istanbul ignore next
             if (!res)
                 return;
@@ -168,7 +169,7 @@ export class IncyclistUpdatesApi extends IncyclistService{
 
             const path = `incyclist-${version}-setup.exe`
             const downloadUrl = `${this.getBaseUrl()}/download/app/latest/win64/${path}`
-            const url = `https://${domain}`
+            const url = this.getHomepageUrl()
 
             return {version,path,url,downloadUrl}
         }

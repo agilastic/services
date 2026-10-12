@@ -3,12 +3,10 @@ import { Singleton } from "../../../../base/types";
 import { trimTrailingChars } from "../../../../utils";
 import { useUserSettings } from "../../../../settings";
 import { Injectable } from "../../../../base/decorators";
-import { IncyclistRestApiClient } from "../../../../api";
+import { IncyclistRestApiClient, getServerUrl, ServerNotConfiguredError } from "../../../../api";
 import { ActiveRideEntry } from "../../../active-rides/types";
 import { ActiveRideQuery } from "./types";
 
-
-const DEFAULT_DOMAIN = 'incyclist.com'
 
 @Singleton
 export class IncyclistActiveRidesApi { 
@@ -17,7 +15,7 @@ export class IncyclistActiveRidesApi {
     async getAll(params?:ActiveRideQuery): Promise<ActiveRideEntry[]> {
 
         try {
-            const baseUrl = this.getBaseUrl()
+            const baseUrl = this.getConfiguredBaseUrl()
             const apiCall = params? this.getApi().get(`${baseUrl}/`, {params}) : this.getApi().get(`${baseUrl}/`)
             const response =  await apiCall
 
@@ -37,7 +35,7 @@ export class IncyclistActiveRidesApi {
 
     async getById( id:string):Promise<ActiveRideEntry> {
         try {
-            const baseUrl = this.getBaseUrl()
+            const baseUrl = this.getConfiguredBaseUrl()
             const response =  await this.getApi().get(`${baseUrl}/${id}`)
             if (response.status!==200)
                 return null
@@ -63,20 +61,24 @@ export class IncyclistActiveRidesApi {
         return this.api
     }
 
-    protected getBaseUrl():string {        
-
-        let baseUrl
+    protected getBaseUrl():string|undefined {        
+        let baseUrl:string|undefined
         try {
-            const domain = this.getUserSettings().get('DOMAIN',DEFAULT_DOMAIN)
-            const defaultUrl = `https://dlws.${domain}/api/v1/active-rides`
-            baseUrl = this.getUserSettings().get('ACTIVE_RIDES_API',defaultUrl)
+            const settings = this.getUserSettings()
+            baseUrl = getServerUrl(settings.get.bind(settings), 'ACTIVE_RIDES_API', 'dlws', '/api/v1/active-rides')
         }
         catch {
-            const domain = DEFAULT_DOMAIN
-            baseUrl = `https://dlws.${domain}/api/v1/active-rides`
+            baseUrl = undefined
         }
 
-        return trimTrailingChars(baseUrl,'/')
+        return baseUrl ? trimTrailingChars(baseUrl,'/') : undefined
+    }
+
+    protected getConfiguredBaseUrl():string {
+        const baseUrl = this.getBaseUrl()
+        if (!baseUrl)
+            throw new ServerNotConfiguredError('active rides')
+        return baseUrl
     }
 
     @Injectable

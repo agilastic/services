@@ -1,10 +1,10 @@
-import { getBindings } from "../../api";
+import { getBindings, getServerUrl } from "../../api";
 import { Injectable } from "../../base/decorators";
 import { IncyclistService } from "../../base/service";
 import { Singleton } from "../../base/types";
 import { useUserSettings } from "../../settings";
 
-const MAPS_API_URL = 'https://updates.incyclist.com/api/v1/maps'// 'https://maps.googleapis.com/maps/api/js'
+const GOOGLE_MAPS_API_URL = 'https://maps.googleapis.com/maps/api/js'
 
 
 @Singleton
@@ -61,10 +61,20 @@ export class GoogleMapsService extends IncyclistService {
         return settings.get('mode', 'production')==='development';        
     }
 
-    getMapsDownloadUrl () {
+    /**
+     * Provides the URL the Google Maps API script is loaded from
+     *
+     * Order: explicit `MAPS_API_URL` setting, the maps proxy on the configured update server (`DOMAIN`),
+     * or - when the user has a personal API key - Google directly
+     *
+     * @returns the URL, or `undefined` if Google Maps cannot be loaded
+     */
+    getMapsDownloadUrl ():string|undefined {
         const settings = this.getUserSettings()
-        const url = settings.getValue('MAPS_API_URL',MAPS_API_URL)
-        return url
+        const url = getServerUrl(settings.getValue.bind(settings), 'MAPS_API_URL', 'updates', '/api/v1/maps')
+        if (url)
+            return url
+        return this.hasPersonalApiKey() ? GOOGLE_MAPS_API_URL : undefined
     }
 
     reload() {

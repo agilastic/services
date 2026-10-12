@@ -16,6 +16,16 @@ describe( 'IncyclistUpdatesApi',()=>{
                 return {data:mockServerResult}
             })
             a.getBaseUrl = jest.fn().mockReturnValue('https://incyclist.com')
+            a.getHomepageUrl = jest.fn().mockReturnValue('https://incyclist.com')
+        })
+
+        test('no update server configured',async ()=>{
+            a.getBaseUrl = jest.fn().mockReturnValue(undefined)
+
+            const res = await a.getLatestAppVersion('darwin')
+
+            expect(res).toBeUndefined()
+            expect(a._get).not.toHaveBeenCalled()
         })
 
         afterEach( ()=> {

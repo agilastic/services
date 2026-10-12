@@ -1,9 +1,9 @@
 import { AxiosInstance } from "axios";
 import { FitExportActivity } from "../../model";
 import { useUserSettings } from "../../../../settings";
-import { DEFAULT_DOMAIN, FITCONVERT_API } from "./consts";
+import { FITCONVERT_API } from "./consts";
 import { trimTrailingChars } from "../../../../utils";
-import { IncyclistRestApiClient } from "../../../../api";
+import { IncyclistRestApiClient, getServerUrl, ServerNotConfiguredError } from "../../../../api";
 import { Injectable } from "../../../../base/decorators";
 
 export class IncyclistFitConvertApi { 
@@ -14,6 +14,8 @@ export class IncyclistFitConvertApi {
         let url
         try {
             const baseUrl = this.getBaseUrl()
+            if (!baseUrl)
+                throw new ServerNotConfiguredError('FIT conversion')
             const requestUrl = `${baseUrl}/activity/${data.id}`
             const response = await this.getApi().post( requestUrl,data);
             url = response.data;            
@@ -42,18 +44,16 @@ export class IncyclistFitConvertApi {
         return this.api
     }
 
-    protected getBaseUrl():string {        
-
-        let baseUrl
+    protected getBaseUrl():string|undefined {        
+        let baseUrl:string|undefined
         try {
-            const domain = this.getUserSettings().get('DOMAIN',DEFAULT_DOMAIN)
-            const defaultUrl = `https://dlws.${domain}/api/v1/fit/convert`
-            baseUrl = this.getUserSettings().get(FITCONVERT_API,defaultUrl)
+            const settings = this.getUserSettings()
+            baseUrl = getServerUrl(settings.get.bind(settings), FITCONVERT_API, 'dlws', '/api/v1/fit/convert')
         }
         catch {
-            baseUrl = 'https://dlws.incyclist.com/api/v1/fit/convert'
+            baseUrl = undefined
         }
-        return trimTrailingChars(baseUrl,'/')
+        return baseUrl ? trimTrailingChars(baseUrl,'/') : undefined
     }
 
     @Injectable

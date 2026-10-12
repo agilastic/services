@@ -17,6 +17,15 @@ describe('FITConvert Api',()=>{
         beforeEach( ()=>{
             a = api = new IncyclistFitConvertApi() 
             a.getApi = jest.fn().mockReturnValue(mock)
+            a.getUserSettings = jest.fn().mockReturnValue({ get: (key,def) => key==='DOMAIN' ? 'incyclist.com' : def })
+        })
+
+        test('fails without contacting a server when no server is configured',async ()=>{
+            a.getUserSettings = jest.fn().mockReturnValue({ get: (_key,def) => def })
+            mock.post = jest.fn()
+
+            await expect(api.convertToFit({...testData})).rejects.toThrow('FIT conversion server not configured')
+            expect(mock.post).not.toHaveBeenCalled()
         })
 
         test('positive',async ()=>{

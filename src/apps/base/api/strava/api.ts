@@ -5,10 +5,10 @@ import { ActivityStreamEntry, DetailedActivity, DuplicateError, getLoggedInAthle
 import { EventLogger} from 'gd-eventlog'
 import { AxiosResponse } from "axios"
 import { sleep } from "../../../../utils/sleep"
+import { getServerUrl } from "../../../../api"
 
 const API_BASE_URL = 'https://www.strava.com/api/v3'
 const OAUTH_URL = 'https://www.strava.com/oauth'
-const AUTH_SERVER_URL = 'https://auth.incyclist.com'
 
 /**
  * Represents a client implementation of a subset of the Strava v3 API
@@ -264,7 +264,12 @@ export class StravaApi extends AppApiBase{
         this.logger.logEvent({message: 'Strava refresh Token start'});
 
         let requestData;
-        const url = this.getAuthServerUrl()+'/strava/refresh'
+        const authServer = this.getAuthServerUrl()
+        if (!authServer) {
+            this.logger.logEvent({message: 'Strava refresh Token skipped', reason:'no auth server configured'});
+            return
+        }
+        const url = authServer+'/strava/refresh'
 
         try {
             requestData =  {
@@ -326,12 +331,13 @@ export class StravaApi extends AppApiBase{
 
     }
 
-    protected getAuthServerUrl() {
+    protected getAuthServerUrl():string|undefined {
         try {
-            return this.getUserSettings().get('STRAVA_AUTH_SERVER_URL',AUTH_SERVER_URL)
+            const settings = this.getUserSettings()
+            return getServerUrl(settings.get.bind(settings), 'STRAVA_AUTH_SERVER_URL', 'auth')
         }
         catch {
-            return AUTH_SERVER_URL
+            return undefined
         }
     }
 

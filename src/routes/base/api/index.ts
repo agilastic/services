@@ -1,8 +1,8 @@
 import {EventLogger} from 'gd-eventlog'
 import { RouteApiDescription, RouteApiDetail, RouteDescriptionQuery } from "./types";
 import { AxiosInstance, AxiosRequestConfig } from "axios";
-import { DEFAULT_DOMAIN, NO_CACHE, ROUTE_API } from './consts'
-import { IncyclistRestApiClient } from '../../../api';
+import { NO_CACHE, ROUTE_API } from './consts'
+import { IncyclistRestApiClient, getServerUrl, ServerNotConfiguredError } from '../../../api';
 import { useUserSettings } from '../../../settings';
 import { RoutePoint } from '../types';
 import { Injectable } from '../../../base/decorators';
@@ -38,11 +38,8 @@ export default class IncyclistRoutesApi {
     }
 
 
-     protected getBaseUrl() {
-        const domain = this.getSetting('DOMAIN',DEFAULT_DOMAIN)
-        const defaultUrl = `https://dlws.${domain}/api/v1/routes`
-        const baseUrl = this.getSetting(ROUTE_API,defaultUrl)
-        return baseUrl
+     protected getBaseUrl():string|undefined {
+        return getServerUrl(this.getSetting.bind(this), ROUTE_API, 'dlws', '/api/v1/routes')
     }
 
     async getRouteDescriptions(query:RouteDescriptionQuery, throws:boolean = false): Promise<Array<RouteApiDescription>> {
@@ -162,6 +159,8 @@ export default class IncyclistRoutesApi {
     protected async _get(url:string, ...args) {
         const api = this.getApi()
         const baseUrl = this.getBaseUrl()
+        if (!baseUrl)
+            throw new ServerNotConfiguredError('route')
         
         return await api.get( baseUrl+url, ...args )       
     }

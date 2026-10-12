@@ -30,7 +30,7 @@ describe ('ActiveRides API',()=>{
             api.getApi = jest.fn().mockReturnValue({get:mock.apiGet})
         }
 
-        const userSettings = props.userSettings??{}
+        const userSettings = props.userSettings??{ DOMAIN:'incyclist.com' }
         mock.userSettingsGet = jest.fn( (k,d) => userSettings[k]??d)
         Inject('UserSettings', { get: mock.userSettingsGet})
         return mock
@@ -81,6 +81,12 @@ describe ('ActiveRides API',()=>{
             const list = await api.getAll()           
             expect(list).toMatchObject(data)
             expect(mock.apiGet).toHaveBeenCalledWith('https://dlws.incyclist.com/api/v1/active-rides/')
+        })
+        test('no server configured', async ()=>{          
+            const mock = setupMocks(api,{response:prepareResponse(data), userSettings:{} })
+            const list = await api.getAll()           
+            expect(list).toEqual([])
+            expect(mock.apiGet).not.toHaveBeenCalled()
         })
         test('no success response status code', async ()=>{          
             const mock = setupMocks(api,{response:prepareResponse(data,{status:301}) })

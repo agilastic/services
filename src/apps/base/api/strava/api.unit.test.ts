@@ -91,10 +91,18 @@ describe ('Strava API',()=> {
             api.init({...initialConfig})
 
             restClient = { request: jest.fn() }
-            settings = { get: jest.fn( (key,def) => def) }
+            settings = { get: jest.fn( (key,def) => key==='DOMAIN' ? 'incyclist.com' : def) }
 
             api.getApi = jest.fn( ()=> restClient)
             api.getUserSettings = jest.fn( ()=> settings)
+        })
+
+        test('skips the refresh without contacting a server when no auth server is configured',async ()=>{
+            settings.get = jest.fn( (key,def) => def)
+
+            await api.refreshToken()
+
+            expect(restClient.request).not.toHaveBeenCalled()
         })
 
         test('calls the auth-server refresh endpoint, not Strava directly, and sends only the refresh token',async ()=>{

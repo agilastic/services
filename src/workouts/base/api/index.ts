@@ -1,9 +1,9 @@
 import {EventLogger} from 'gd-eventlog'
 import { AxiosInstance } from "axios";
-import { IncyclistRestApiClient } from '../../../api';
+import { IncyclistRestApiClient, getServerUrl, ServerNotConfiguredError } from '../../../api';
 import { useUserSettings } from '../../../settings';
 import { Singleton } from '../../../base/types';
-import { DEFAULT_DOMAIN, WORKOUT_API } from './consts';
+import { WORKOUT_API } from './consts';
 import { Plan, Workout } from '../model/Workout';
 import { Injectable } from '../../../base/decorators';
 
@@ -31,11 +31,8 @@ export class IncyclistWorkoutsApi {
     }
 
 
-    protected getBaseUrl():string {
-        const domain = this.getSetting('DOMAIN',DEFAULT_DOMAIN)
-        const defaultUrl = `https://dlws.${domain}/api/v1/workouts`
-        return this.getSetting(WORKOUT_API,defaultUrl)
-       
+    protected getBaseUrl():string|undefined {
+        return getServerUrl(this.getSetting.bind(this), WORKOUT_API, 'dlws', '/api/v1/workouts')
     }
 
 
@@ -74,6 +71,8 @@ export class IncyclistWorkoutsApi {
     protected async _get(url:string, ...args) {
         const api = this.getApi()
         const baseUrl = this.getBaseUrl()
+        if (!baseUrl)
+            throw new ServerNotConfiguredError('workout')
         const request = baseUrl+url
         console.log(request)
 
