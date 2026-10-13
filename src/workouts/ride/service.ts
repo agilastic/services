@@ -12,7 +12,7 @@ import { CurrentStep, PowerLimit, StepDefinition } from "../base/model/types";
 import { getStepDuration, getStepTargetText } from "../base/graph";
 import { WorkoutListService, useWorkoutList } from "../list";
 import { WorkoutSettings } from "../list/cards/types";
-import { ActiveWorkoutLimit, LoadButtonMode, PowerAdjustmentResult, WorkoutDisplayProperties } from "./types";
+import { ActiveWorkoutLimit, LoadButtonMode, PowerAdjustmentResult, WorkoutDisplayProperties, WorkoutNextStep } from "./types";
 import { Injectable } from "../../base/decorators";
 import { useRideDisplay } from "../../ride/display/service";
 
@@ -878,7 +878,8 @@ export class WorkoutRide extends IncyclistService{
                 canShowForward:true,
                 loadButtonMode,
                 loadButtons: loadButtonMode==='power' ? this.getLoadButtonLabels() : this.getGearButtonLabels(),
-                pinned: this.getRideDisplay().isOverlayPinned(PINNED_OVERLAY_ID)
+                pinned: this.getRideDisplay().isOverlayPinned(PINNED_OVERLAY_ID),
+                next: this.getNextStep()
             }
 
             return props
@@ -1228,6 +1229,43 @@ export class WorkoutRide extends IncyclistService{
     // repeat suffix here to avoid showing it twice.
     protected getBindings() {
         return getBindings()
+    }
+
+    /**
+     * Provides the step that follows the current one (undefined during the last step)
+     */
+    protected getNextStep():WorkoutNextStep|undefined {
+        try {
+            const current = this.currentLimits
+            if (!this.workout || !current || this.trainingTime===undefined)
+                return undefined
+
+            const stepEnd = this.trainingTime + (current.remaining??0)
+            if (stepEnd >= this.workout.getEnd())
+                return undefined
+
+            // a moment after the current step's end - the boundary itself still belongs to the current step
+            const limit = this.workout.getLimits(stepEnd+0.5, true)
+            const step = limit?.step ?? limit
+            if (!step)
+                return undefined
+
+            const isPct = step.power?.type==='pct of FTP'
+            const genericName = step.cooldown ? 'Cooldown' : step.work ? 'Work' : (step.steady===false ? 'Ramp' : 'Recover')
+
+            return {
+                name: step.text || genericName,
+                duration: step.duration,
+                minPower: this.getPowerVal(step.power,'min'),
+                maxPower: this.getPowerVal(step.power,'max'),
+                minPct: isPct ? step.power.min : undefined,
+                maxPct: isPct ? step.power.max : undefined,
+            }
+        }
+        catch(err) {
+            this.logError(err,'getNextStep')
+            return undefined
+        }
     }
 
     protected getStepTitle(time:number) {

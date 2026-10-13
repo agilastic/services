@@ -528,6 +528,48 @@ describe('WorkoutRide',()=>{
     })
 
 
+    describe('next step',()=>{
+        const workout = new Workout({type:'workout',name:'Test Workout'})
+        workout.addStep( {type:'step', steady:false, duration:10, power:{min:50,max:80,type:'pct of FTP'}} )
+        workout.addStep( {type:'step', steady:true, work:true, duration:20, power:{min:120,max:120,type:'pct of FTP'}, text:'Sprint'} )
+        workout.addStep( {type:'step', steady:true, work:false, duration:30, power:{min:50,max:50,type:'pct of FTP'}} )
+
+        let s:WorkoutRide
+
+        beforeEach( ()=>{
+            jest.useFakeTimers()
+            setupMocks(workout)
+            s = new WorkoutRide()
+            s.init()
+            s.start()
+        })
+        afterEach( ()=>{
+            s.stopWorker()
+            s.reset()
+            resetMocks()
+            jest.clearAllTimers()
+            jest.useRealTimers()
+            jest.resetAllMocks()
+        })
+
+        test('shows the following step with its name, duration and power',()=>{
+            const {next} = s.getDashboardDisplayProperties()
+            expect(next).toEqual({ name:'Sprint', duration:20, minPower:306, maxPower:306, minPct:120, maxPct:120 })
+        })
+
+        test('steps without a name get a generic name',()=>{
+            jest.advanceTimersByTime(12000)
+            const {next} = s.getDashboardDisplayProperties()
+            expect(next).toMatchObject({ name:'Recover', duration:30, minPower:128, maxPower:128 })
+        })
+
+        test('there is no next step during the last step',()=>{
+            jest.advanceTimersByTime(35000)
+            const {next} = s.getDashboardDisplayProperties()
+            expect(next).toBeUndefined()
+        })
+    })
+
     describe('step-countdown scheduling',()=>{
         // Precisely scheduled via wall-clock setTimeout()s (see rescheduleStepCountdown()), not
         // detected reactively on the poll loop - so these tests drive fake timers rather than

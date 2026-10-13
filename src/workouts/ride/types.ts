@@ -36,6 +36,20 @@ export interface PowerAdjustmentResult {
     value: number
 }
 
+/** The step that follows the current one - lets the dashboard tell the rider what comes next */
+export interface WorkoutNextStep {
+    /** name of the step (its own text, or a generic name like 'Work'/'Recover') */
+    name: string
+    /** duration of the step in seconds */
+    duration: number
+    /** power target in Watt (min===max for a steady step, min<max for a ramp or range) */
+    minPower?: number
+    maxPower?: number
+    /** power target in % of FTP, only set when the step is defined relative to FTP */
+    minPct?: number
+    maxPct?: number
+}
+
 export interface WorkoutDisplayProperties {
     workout?:Workout,
     title?:string,
@@ -46,6 +60,8 @@ export interface WorkoutDisplayProperties {
     mode?: string,
     canShowBackward?: boolean,
     canShowForward?: boolean,
+    /** the step after the current one - undefined during the last step */
+    next?: WorkoutNextStep,
     /** What a click on the dashboard's load-adjustment buttons currently does (FIXES_BACKLOG #37) -
      *  see `getLoadButtonMode()` in `incyclist-devices`' ride module for the exact semantics of each
      *  value. `web-ui`/`mobile` use this to hide the four load buttons entirely when `'hidden'`, and
