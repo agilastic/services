@@ -219,6 +219,7 @@ export class DesktopPairingPageService extends PairingPageService {
             enabled: current?.enabled??false,
             protocol: current?.protocol,
             port: current?.port,
+            host: current?.host,
             onOK: (settings:InterfaceSetting)=>{ this.onInterfaceSettingsChanged(name,settings) },
             onClose: ()=>{ this.closeInterfaceSettings() },
         }

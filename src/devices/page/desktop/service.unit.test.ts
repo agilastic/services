@@ -426,6 +426,19 @@ describe('DesktopPairingPageService - desktop behaviour matrix', ()=> {
             }))
         })
 
+        test('the TCP/IP settings dialog shows the configured host', ()=> {
+            setPairingState({ interfaces: [
+                { name:'tcpip', state:'idle', isScanning:false, enabled:true, protocol:'Daum Premium', port:51955, host:'192.168.1.50' },
+            ] })
+            deviceAccess.getProtocols.mockReturnValue(['Daum Premium'])
+
+            service.getPageDisplayProperties().interfaces[0].onClick()
+
+            expect(service.getPageDisplayProperties().showInterfaceSettings).toEqual(expect.objectContaining({
+                name:'tcpip', port:51955, host:'192.168.1.50',
+            }))
+        })
+
         test('OK in the settings dialog persists the change and closes the dialog', ()=> {
             setPairingState({ interfaces: [
                 { name:'ant', state:'idle', isScanning:false, enabled:false },

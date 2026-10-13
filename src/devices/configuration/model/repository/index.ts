@@ -19,6 +19,8 @@ export interface InterfaceSetting {
     name: string;
     enabled: boolean;
     port?: number|string;
+    /** tcpip only: fixed host (IP address) of the device - if set, the local network is not scanned */
+    host?: string
     protocol?: string
     invisible?: boolean
 }

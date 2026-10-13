@@ -595,7 +595,8 @@ export class DevicePairingService  extends IncyclistService{
             
             
             const _interface = this.state.interfaces.find( i=>i.name===name)
-            const changed = settings.enabled !== _interface.enabled
+            const keys = ['enabled','protocol','port','host'] as const
+            const changed = keys.some( key => settings[key]!==undefined && settings[key]!==_interface[key])
 
             if(!changed)
                 return

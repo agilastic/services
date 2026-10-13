@@ -28,6 +28,7 @@ export type DesktopInterfaceSettingsDisplayProps = {
     enabled: boolean
     protocol?: string
     port?: number|string
+    host?: string
     onOK: (settings:InterfaceSetting)=>void
     onClose: ()=>void
 }

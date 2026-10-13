@@ -1350,6 +1350,26 @@ describe('PairingService',()=>{
 
             })
 
+            test('protocol change is saved',()=>{
+                const ant: Partial<InterfaceSetting> = {enabled:true, protocol:'other'}
+                svc.changeInterfaceSettings('ant',ant as InterfaceSetting)
+                expect( configuration.setInterfaceSettings).toHaveBeenCalledWith('ant',ant)
+            })
+
+            test('host change is saved',()=>{
+                const ant: Partial<InterfaceSetting> = {enabled:true, host:'192.168.1.50'}
+                svc.changeInterfaceSettings('ant',ant as InterfaceSetting)
+                expect( configuration.setInterfaceSettings).toHaveBeenCalledWith('ant',ant)
+            })
+
+            test('clearing the host is saved',()=>{
+                const antIf = svc.getState()?.interfaces?.find(i=>i.name==='ant') || {} as any
+                antIf.host = '192.168.1.50'
+                const ant: Partial<InterfaceSetting> = {enabled:true, host:''}
+                svc.changeInterfaceSettings('ant',ant as InterfaceSetting)
+                expect( configuration.setInterfaceSettings).toHaveBeenCalledWith('ant',ant)
+            })
+
     
 
         })
