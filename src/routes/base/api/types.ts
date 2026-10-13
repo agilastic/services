@@ -27,6 +27,8 @@ export interface RouteApiDescription extends RouteBase {
     downloadUrl?:string,
     requiresDownload?:boolean,
     isDeleted?:boolean
+    /** date the route (video) was recorded, ISO 8601 */
+    recordedAt?: string
     selectableSegments?: Array<RouteSegment>
 
     

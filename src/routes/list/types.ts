@@ -14,8 +14,11 @@ export interface RouteStartSettings {
 
 export type DisplayType = 'list' | 'tiles'
 
-/** Persisted sort order for the route list/tile view. `'suggested'` is the default. */
-export type RouteListSortOrder = 'suggested' | 'name' | 'distance' | 'elevation'
+/** Persisted sort order for the route list/tile view. `'recordingDate'` (newest first) is the default. */
+export type RouteListSortOrder = 'suggested' | 'name' | 'distance' | 'elevation' | 'recordingDate'
+
+/** Direction of the route list sort order (not applicable to `'suggested'`). */
+export type RouteListSortDirection = 'asc' | 'desc'
 
 export interface FreeRidePoints extends LatLng {
     distance?: number;

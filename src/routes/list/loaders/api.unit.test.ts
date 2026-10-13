@@ -82,6 +82,45 @@ describe('RoutesApiLoader',()=>{
 
 
 
+        describe('recording date',()=>{
+            const descr = { id:'r1', title:'Route 1', version:1, recordedAt:'2026-06-10T13:32:42Z', video:{url:'https://example.com/r1.mp4'} } as RouteApiDescription
+
+            beforeEach( ()=>{
+                setupApiMock({fn: ()=>undefined})
+            })
+
+            test('is taken over from the API description',()=>{
+                const info = service.buildRouteInfo(descr)
+
+                expect(info.recordedAt).toBe('2026-06-10T13:32:42Z')
+            })
+
+            test('updates an existing route of the same version that has no recording date yet',async ()=>{
+                const existing = { id:'r1', title:'Route 1', version:1, tsImported:1000 }
+                service.getDescriptionFromDB = jest.fn().mockReturnValue(existing)
+                service.getDetailsFromDB = jest.fn().mockResolvedValue({})
+                service.emitAndPrepareLoadDetails = jest.fn()
+                const items = []
+
+                await service.processRouteFromApi(descr, items)
+
+                const [description] = service.emitAndPrepareLoadDetails.mock.calls[0]
+                expect(description.recordedAt).toBe('2026-06-10T13:32:42Z')
+                expect(description.tsImported).toBe(1000)
+            })
+
+            test('keeps an existing route of the same version with the same recording date',async ()=>{
+                const existing = { id:'r1', title:'Route 1', version:1, recordedAt:'2026-06-10T13:32:42Z' }
+                service.getDescriptionFromDB = jest.fn().mockReturnValue(existing)
+                service.getDetailsFromDB = jest.fn().mockResolvedValue({})
+                service.emitAndPrepareLoadDetails = jest.fn()
+
+                await service.processRouteFromApi(descr, [])
+
+                expect(service.emitAndPrepareLoadDetails).not.toHaveBeenCalled()
+            })
+        })
+
         test('initial load',async ()=>{
 
             setupApiMock({fn: ()=>valdrome})

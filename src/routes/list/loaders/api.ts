@@ -30,6 +30,10 @@ const ExistingAndNotUpdated = (existing: RouteInfo, descr: RouteInfo) => {
     if (existing.isLocal)
         return true
 
+    // the recording date was added to the API later - take it over without a version change
+    if (descr.recordedAt && descr.recordedAt!==existing.recordedAt)
+        return false
+
     return ((existing.version || 0) >= (descr.version || 0))
         && (!isDeleted || (isDeleted && existing.isDownloaded));
 }
@@ -277,9 +281,9 @@ export class RoutesApiLoader extends Loader<RouteApiDescription> {
     }
 
     protected buildRouteInfo( descr:RouteApiDescription, isLocal?:boolean): RouteInfo {
-        const { id,routeId,title,localizedTitle,country,distance,elevation, category,provider, video, requiresDownload,points,previewUrl,downloadUrl,routeHash,version,isDeleted} = descr
+        const { id,routeId,title,localizedTitle,country,distance,elevation, category,provider, video, requiresDownload,points,previewUrl,downloadUrl,routeHash,version,isDeleted,recordedAt} = descr
         
-        const data:RouteInfo = { title,localizedTitle,country,distance,elevation,provider,category,previewUrl,requiresDownload,downloadUrl,routeHash,version,isDeleted}
+        const data:RouteInfo = { title,localizedTitle,country,distance,elevation,provider,category,previewUrl,requiresDownload,downloadUrl,routeHash,version,isDeleted,recordedAt}
 
         data.hasVideo = false;
         data.hasGpx = false;

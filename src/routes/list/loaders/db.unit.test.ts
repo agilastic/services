@@ -402,6 +402,34 @@ describe('RoutesDbLoader',()=>{
 
         })
 
+        test('changes saved while a write is in progress are persisted as well',async ()=>{
+            const written:Array<Array<any>> = []
+            let finishFirstWrite
+            loaderObj.routesRepo.write = jest.fn( (_key, data) => {
+                written.push(clone(data))
+                if (written.length===1)
+                    return new Promise( done => { finishFirstWrite = done })
+                return Promise.resolve()
+            })
+            loaderObj.writeDetails = jest.fn()
+            loaderObj.tsLastWrite = undefined   // no throttling from the initial load
+
+            const [r1,r2] = routes
+            r1.description.recordedAt = '2026-06-10T13:32:42.000Z'
+            await loader.save( r1, false)
+
+            // second change arrives while the first write is still running
+            r2.description.recordedAt = '2026-05-31T12:10:22.000Z'
+            await loader.save( r2, false)
+
+            finishFirstWrite()
+            await new Promise( done => setTimeout(done, 1100))
+
+            const last = written[written.length-1]
+            expect(last.find(d=>d.id===r1.description.id).recordedAt).toBe('2026-06-10T13:32:42.000Z')
+            expect(last.find(d=>d.id===r2.description.id).recordedAt).toBe('2026-05-31T12:10:22.000Z')
+        })
+
     })
 
     describe( 'delete',()=>{

@@ -131,6 +131,8 @@ export interface    RouteInfo extends RouteBase{
     points?: Array<RoutePoint>,
     segments?:Array<RouteSegment>,
     tsImported?: number,
+    /** date the route (video) was recorded, ISO 8601 - provided by the route server */
+    recordedAt?: string,
     tsLastChange?:number,
     tsLastStart?: number,
     tsReleased?:number,

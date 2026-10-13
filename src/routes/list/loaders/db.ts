@@ -164,8 +164,9 @@ export class RoutesDbLoader extends DBLoader<RouteInfoDBEntry>{
 
         const save = async ():Promise<void>=> {
             try {
+                // isDirty is reset by write() before this snapshot is taken - resetting it here (after the
+                // write completed) would drop changes made while the write was in progress
                 await this.routesRepo.write('db',this.routeDescriptions.map(this.buildRouteDBInfo.bind(this)) as JSONObject)
-                this.isDirty = false
             }
             catch(err) {
                 this.logger.logEvent({message:'could not safe repo',error:err.message })

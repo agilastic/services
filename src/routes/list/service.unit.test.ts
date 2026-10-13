@@ -328,22 +328,31 @@ describe('RouteListService',()=>{
             jest.clearAllMocks()
         })
 
-        test('defaults to Suggested, matching an explicit suggested sort order',()=>{
-            // Suggested scores routes against the wall clock; freeze it so the two reads can't
-            // straddle a recency boundary and reorder
-            const now = Date.now()
-            const nowSpy = jest.spyOn(Date,'now').mockReturnValue(now)
-            try {
-                const withDefault = service.searchRepo().routes.map(r=>r.id)
+        test('defaults to Recording date, matching an explicit recordingDate sort order',()=>{
+            const withDefault = service.searchRepo().routes.map(r=>r.id)
 
-                service.setSortOrder('suggested')
-                const withExplicit = service.searchRepo().routes.map(r=>r.id)
+            service.setSortOrder('recordingDate')
+            const withExplicit = service.searchRepo().routes.map(r=>r.id)
 
-                expect(withDefault).toEqual(withExplicit)
-            }
-            finally {
-                nowSpy.mockRestore()
-            }
+            expect(withDefault).toEqual(withExplicit)
+        })
+
+        test('Recording date sorts newest first, routes without a date last (by name)',()=>{
+            new RouteListService().reset()
+            const customData = [
+                { id:'old', title:'B old', recordedAt:'2025-05-31T12:10:22Z', isLocal:false },
+                { id:'none2', title:'Z none', isLocal:false },
+                { id:'new', title:'C new', recordedAt:'2026-10-07T10:21:00Z', isLocal:false },
+                { id:'none1', title:'A none', isLocal:false },
+                { id:'invalid', title:'M invalid', recordedAt:'not a date', isLocal:false },
+            ] as unknown as Array<RouteInfoDBEntry>
+
+            const custom = new MockeableService(customData)
+            custom.setSortOrder('recordingDate')
+
+            const {routes} = custom.searchRepo()
+
+            expect(routes.map(r=>r.id)).toEqual(['new','old','none1','invalid','none2'])
         })
 
         // a private, never-shared data set - unlike the module-level db.json fixture, whose route
@@ -363,6 +372,51 @@ describe('RouteListService',()=>{
             const {routes} = custom.searchRepo()
 
             expect(routes.map(r=>r.id)).toEqual(['v1','g1'])
+        })
+
+        test('Recording date ascending: oldest first, routes without a date still last',()=>{
+            new RouteListService().reset()
+            const customData = [
+                { id:'old', title:'B old', recordedAt:'2025-05-31T12:10:22Z', isLocal:false },
+                { id:'none', title:'A none', isLocal:false },
+                { id:'new', title:'C new', recordedAt:'2026-10-07T10:21:00Z', isLocal:false },
+            ] as unknown as Array<RouteInfoDBEntry>
+
+            const custom = new MockeableService(customData)
+            custom.setSortOrder('recordingDate')
+            custom.setSortDirection('asc')
+
+            expect(custom.searchRepo().routes.map(r=>r.id)).toEqual(['old','new','none'])
+        })
+
+        test('descending reverses Name (Z-A)',()=>{
+            service.setSortOrder('name')
+            service.setSortDirection('desc')
+            const {routes} = service.searchRepo()
+
+            const titles = routes.map(r=>r.title)
+            expect(titles).toEqual([...titles].sort((a,b)=> a>b ? -1 : 1))
+        })
+
+        test('changing the sort order resets the direction to its default',()=>{
+            service.setSortOrder('name')
+            service.setSortDirection('desc')
+
+            service.setSortOrder('distance')
+            expect(service.getSortDirection()).toBe('asc')
+
+            service.setSortOrder('recordingDate')
+            expect(service.getSortDirection()).toBe('desc')
+        })
+
+        test('default direction is newest first for the default sort order',()=>{
+            expect(service.getSortOrder()).toBe('recordingDate')
+            expect(service.getSortDirection()).toBe('desc')
+        })
+
+        test('the direction is persisted',()=>{
+            service.setSortDirection('asc')
+            expect(settingsStore['preferences.routeListSortDirection']).toBe('asc')
         })
 
         test('Name (A-Z) sorts titles alphabetically',()=>{
@@ -790,8 +844,8 @@ describe('RouteListService',()=>{
         })
 
         describe('getSortOrder/setSortOrder', () => {
-            test('defaults to suggested', () => {
-                expect(service.getSortOrder()).toBe('suggested')
+            test('defaults to recordingDate', () => {
+                expect(service.getSortOrder()).toBe('recordingDate')
             })
 
             test('round-trips and persists to user settings', () => {
@@ -1102,6 +1156,7 @@ describe('RouteListService',()=>{
             // Set directly rather than via setSortOrder(), which persists through the real
             // (here uninitialized) UserSettingsService - this describe injects no settings mock.
             ;(service as any).sortOrder = 'name'
+            ;(service as any).sortDirection = 'asc'
         })
 
         afterEach(() => {

@@ -13,7 +13,7 @@ import { FreeRideCard } from "./cards/FreeRideCard";
 import { MyRoutes } from "./lists/myroutes";
 import { RouteCard } from "./cards/RouteCard";
 import { RouteSettings, SummaryCardDisplayProps } from "./cards/types";
-import { ActiveRideCount, DisplayType, IRouteList, RouteDetailUIItem, RouteListLog, RouteListSortOrder, RouteStartSettings, SearchFilter, SearchFilterOptions, SearchState } from "./types";
+import { ActiveRideCount, DisplayType, IRouteList, RouteDetailUIItem, RouteListLog, RouteListSortDirection, RouteListSortOrder, RouteStartSettings, SearchFilter, SearchFilterOptions, SearchState } from "./types";
 import { RoutesDbLoader } from "./loaders/db";
 import { valid } from "../../utils/valid";
 import { getCountries  } from "../../i18n/countries";
@@ -81,6 +81,7 @@ export class RouteListService  extends IncyclistService implements IRouteList {
     protected listTop: Record<DisplayType,number> = { list:undefined, tiles:undefined }
     protected displayType: DisplayType
     protected sortOrder: RouteListSortOrder
+    protected sortDirection: RouteListSortDirection
     protected filtersExpanded: boolean
     protected syncInfo:  {iv?: NodeJS.Timeout, observer?: Observer} 
     protected currentView: 'list'|'grid'|'routes'
@@ -96,7 +97,7 @@ export class RouteListService  extends IncyclistService implements IRouteList {
      *  card set nor the persisted sort order (not the filters) has changed - see
      *  getSortedSearchCards() */
     protected detailsQueue: RouteDetailsQueue<RouteDetailUIItem>
-    protected sortedSearchCache: { allCards:Array<RouteCard>, sortOrder:RouteListSortOrder, sortedCards:Array<RouteCard> }
+    protected sortedSearchCache: { allCards:Array<RouteCard>, sortOrder:RouteListSortOrder, sortDirection:RouteListSortDirection, sortedCards:Array<RouteCard> }
 
     constructor () {
         super('RouteList')
@@ -489,15 +490,42 @@ export class RouteListService  extends IncyclistService implements IRouteList {
     setSortOrder(sortOrder:RouteListSortOrder) {
         this.sortOrder = sortOrder
         this.getUserSettings().set('preferences.routeListSortOrder', sortOrder)
+        // a new sort order starts with its natural direction
+        this.setSortDirection(this.getDefaultSortDirection(sortOrder))
     }
 
     /**
-     * Retrieves the persisted sort order for the route list, defaulting to `'suggested'`.
+     * Sets the persisted direction of the route list sort order.
+     *
+     * @param sortDirection `'asc'` or `'desc'`
+     */
+    setSortDirection(sortDirection:RouteListSortDirection) {
+        this.sortDirection = sortDirection
+        this.getUserSettings().set('preferences.routeListSortDirection', sortDirection)
+    }
+
+    /**
+     * Retrieves the persisted direction of the route list sort order, defaulting to the natural
+     * direction of the current sort order (newest first for `'recordingDate'`, ascending otherwise).
+     *
+     * @returns The current sort direction.
+     */
+    getSortDirection():RouteListSortDirection {
+        return this.sortDirection
+            ?? this.getUserSettings().get('preferences.routeListSortDirection', this.getDefaultSortDirection(this.getSortOrder()))
+    }
+
+    protected getDefaultSortDirection(sortOrder:RouteListSortOrder):RouteListSortDirection {
+        return sortOrder==='recordingDate' ? 'desc' : 'asc'
+    }
+
+    /**
+     * Retrieves the persisted sort order for the route list, defaulting to `'recordingDate'` (newest first).
      *
      * @returns The current sort order.
      */
     getSortOrder():RouteListSortOrder {
-        return this.sortOrder ?? this.getUserSettings().get('preferences.routeListSortOrder', 'suggested')
+        return this.sortOrder ?? this.getUserSettings().get('preferences.routeListSortOrder', 'recordingDate')
     }
 
     /**
@@ -2218,15 +2246,16 @@ export class RouteListService  extends IncyclistService implements IRouteList {
     protected getSortedSearchCards():{allCards:Array<RouteCard>, routes:Array<SummaryCardDisplayProps>} {
         const allCards = this.getAllSearchCards()
         const sortOrder = this.getSortOrder()
+        const sortDirection = this.getSortDirection()
 
         let sortedCards:Array<RouteCard>
         const cache = this.sortedSearchCache
-        if (this.isSortCacheValid(cache, allCards, sortOrder)) {
+        if (this.isSortCacheValid(cache, allCards, sortOrder, sortDirection)) {
             sortedCards = cache.sortedCards
         }
         else {
-            sortedCards = this.sortSearchCards(allCards, sortOrder)
-            this.sortedSearchCache = {allCards, sortOrder, sortedCards}
+            sortedCards = this.sortSearchCards(allCards, sortOrder, sortDirection)
+            this.sortedSearchCache = {allCards, sortOrder, sortDirection, sortedCards}
         }
 
         const routes = sortedCards.map( c => this.getCachedDisplayProperties(c))
@@ -2234,8 +2263,8 @@ export class RouteListService  extends IncyclistService implements IRouteList {
     }
 
     /**
-     * Orders a card set for one of the four persisted sort orders: `Suggested` (default),
-     * `Name (A-Z)`, `Distance` and `Elevation`.
+     * Orders a card set for one of the persisted sort orders: `Recording date` (default, newest
+     * first), `Suggested`, `Name (A-Z)`, `Distance` and `Elevation`.
      *
      * `Suggested` reuses the existing "Selected For Me" scorer rather than a new ranking - see
      * {@link score}. The other three compare a single field already present on the card's
@@ -2243,18 +2272,24 @@ export class RouteListService  extends IncyclistService implements IRouteList {
      *
      * @param cards the card set to order, in `getAllSearchCards()`'s own order
      * @param sortOrder the persisted sort order to apply
+     * @param sortDirection the persisted direction (ignored for `'suggested'`)
      */
-    protected sortSearchCards(cards:Array<RouteCard>, sortOrder:RouteListSortOrder):Array<RouteCard> {
+    protected sortSearchCards(cards:Array<RouteCard>, sortOrder:RouteListSortOrder, sortDirection:RouteListSortDirection='asc'):Array<RouteCard> {
         if (sortOrder==='suggested')
             return this.sortCardsBySuggestion(cards)
 
-        return [...cards].sort(this.getSortComparer(sortOrder))
+        const sign = sortDirection==='desc' ? -1 : 1
+        if (sortOrder==='recordingDate')
+            return [...cards].sort( (a,b)=>this.compareCardsByRecordingDate(a,b,sign) )
+
+        const compare = this.getSortComparer(sortOrder)
+        return [...cards].sort( (a,b)=> sign*compare(a,b) )
     }
 
-    protected isSortCacheValid(cache:typeof this.sortedSearchCache, allCards:Array<RouteCard>, sortOrder:RouteListSortOrder):boolean {
+    protected isSortCacheValid(cache:typeof this.sortedSearchCache, allCards:Array<RouteCard>, sortOrder:RouteListSortOrder, sortDirection:RouteListSortDirection):boolean {
         if (!cache)
             return false
-        return cache.sortOrder===sortOrder && this.isSameCardSet(allCards, cache.allCards)
+        return cache.sortOrder===sortOrder && cache.sortDirection===sortDirection && this.isSameCardSet(allCards, cache.allCards)
     }
 
     protected getSortComparer(sortOrder:RouteListSortOrder):(a:RouteCard, b:RouteCard)=>number {
@@ -2263,6 +2298,21 @@ export class RouteListService  extends IncyclistService implements IRouteList {
         if (sortOrder==='elevation')
             return this.compareCardsByElevation.bind(this)
         return this.compareCardsByName.bind(this)
+    }
+
+    /** oldest recording first (sign=1) or newest first (sign=-1) - routes without a recording date
+     *  always go to the end, ordered by name */
+    private compareCardsByRecordingDate(a:RouteCard, b:RouteCard, sign:number):number {
+        const ra = Date.parse(this.getCachedDisplayProperties(a)?.recordedAt ?? '')
+        const rb = Date.parse(this.getCachedDisplayProperties(b)?.recordedAt ?? '')
+        const hasA = !Number.isNaN(ra)
+        const hasB = !Number.isNaN(rb)
+
+        if (hasA && hasB && ra!==rb)
+            return sign*(ra-rb)
+        if (hasA!==hasB)
+            return hasA ? -1 : 1
+        return this.compareCardsByName(a,b)
     }
 
     private compareCardsByName(a:RouteCard, b:RouteCard):number {
