@@ -23,6 +23,8 @@ export type ActivitySummaryDisplayProperties = {
     workoutGraph?: ActivityWorkoutSummaryGraph
     preview?: string
     units?: Record<Dimension,Unit>
+    /** true if the ride can be handed over for the manual Garmin Connect upload (saved, has positions, platform provides a download folder) */
+    showGarminUpload?: boolean
 }
 
 export type ActivityUpdate = {

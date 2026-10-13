@@ -626,6 +626,7 @@ export class ActivityRideService extends IncyclistService {
                 showWorkoutSummary,
                 workoutGraph,
                 showDonate:this.canShowDonate(),
+                showGarminUpload: !showSave && hasGPX && this.canExportForGarminConnect(),
                 preview,
                 units: this.getUnitConverter().getDefaultUnits()
 
@@ -1320,7 +1321,30 @@ export class ActivityRideService extends IncyclistService {
         try {
             if (!this.getUserSettings().get(GARMIN_CONNECT_GPX_EXPORT, false))
                 return
+            await this.uploadToGarminConnect()
+        }
+        catch(err) {
+            this.logError(err,'exportForGarminConnect')
+        }
+    }
 
+    protected canExportForGarminConnect():boolean {
+        try {
+            return this.getBindings().appInfo?.getDownloadsDir?.()!==undefined
+        }
+        catch {
+            return false
+        }
+    }
+
+    /**
+     * Manual Garmin Connect upload: saves the ride as GPX into the user's download folder, opens
+     * the Garmin Connect import page and shows the file, so it can simply be dropped there.
+     *
+     * @returns true if the GPX file was created
+     */
+    async uploadToGarminConnect():Promise<boolean> {
+        try {
             const data = await ActivityConverter.convert(this.activity,'gpx') as string
             const fileName = await this.getGarminExportFileName()
             await this.getFileSystemBinding().writeFile(fileName, Buffer.from(data))
@@ -1329,9 +1353,11 @@ export class ActivityRideService extends IncyclistService {
             const ui = this.getBindings().ui
             ui?.openBrowserWindow(GARMIN_CONNECT_IMPORT_URL)
             ui?.showItemInFolder(fileName)
+            return true
         }
         catch(err) {
-            this.logError(err,'exportForGarminConnect')
+            this.logError(err,'uploadToGarminConnect')
+            return false
         }
     }
 

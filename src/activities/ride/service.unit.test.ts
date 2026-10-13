@@ -1360,6 +1360,39 @@ describe('ActivityRideService',()=>{
             expect(writeFile.mock.calls[0][0]).toBe('/act/a1.gpx')
         })
 
+        test('uploadToGarminConnect exports without the setting (button in the summary)',async ()=>{
+            const res = await service.uploadToGarminConnect()
+
+            expect(res).toBe(true)
+            expect(writeFile).toHaveBeenCalled()
+            expect(ui.openBrowserWindow).toHaveBeenCalledWith('https://connect.garmin.com/app/import-data')
+        })
+
+        test('uploadToGarminConnect reports a failed export',async ()=>{
+            ;(ActivityConverter.convert as jest.Mock).mockRejectedValue(new Error('activity does not contain any position'))
+
+            expect(await service.uploadToGarminConnect()).toBe(false)
+            expect(ui.openBrowserWindow).not.toHaveBeenCalled()
+        })
+
+        test('the summary offers the upload only for a saved ride with positions',()=>{
+            const props = (logs:any[], saved:boolean)=>{
+                ;(service as any).activity = { ...(service as any).activity, logs }
+                ;(service as any).isSaveDone = saved
+                ;(service as any).getRouteList = jest.fn( ()=>({ getSelected: ()=>undefined, getStartSettings: ()=>({}) }))
+                ;(service as any).getUnitConverter = jest.fn( ()=>({ getDefaultUnits: ()=>({}) }))
+                ;(service as any).canShowDonate = jest.fn( ()=>false)
+                return service.getActivitySummaryDisplayProperties()
+            }
+            const withPos = [{ time:0, lat:52.3, lng:9.6, speed:0, power:0, timeDelta:0 }]
+
+            expect(props(withPos,true).showGarminUpload).toBe(true)
+            expect(props(withPos,false).showGarminUpload).toBe(false)
+            expect(props([{ time:0, speed:0, power:0, timeDelta:0 }],true).showGarminUpload).toBe(false)
+            downloadsDir = undefined
+            expect(props(withPos,true).showGarminUpload).toBe(false)
+        })
+
         test('a failed conversion does not throw and opens nothing',async ()=>{
             settings['preferences.garminConnect.gpxExport'] = true
             ;(ActivityConverter.convert as jest.Mock).mockRejectedValue(new Error('activity does not contain any position'))
