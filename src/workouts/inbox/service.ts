@@ -6,7 +6,7 @@ import { IncyclistService } from '../../base/service'
 import { Singleton } from '../../base/types'
 import { useUserSettings } from '../../settings'
 import { useWorkoutList } from '../list'
-import type { WorkoutInboxImport } from './types'
+import type { WorkoutInboxImport, WorkoutInboxStatus } from './types'
 
 /** user setting: automatically import workouts downloaded into the download folder */
 export const WORKOUT_INBOX_SETTING = 'preferences.workoutInbox.enabled'
@@ -28,6 +28,7 @@ export const WORKOUT_LIBRARY_URL = 'https://whatsonzwift.com/workouts'
 export class WorkoutInboxService extends IncyclistService {
     protected watchId?: string
     protected listening = false
+    protected failed = false
 
     constructor() {
         super('WorkoutInbox')
@@ -59,7 +60,9 @@ export class WorkoutInboxService extends IncyclistService {
             }
 
             this.watchId = await binding.watch(dir, WORKOUT_INBOX_EXTENSIONS)
+            this.failed = !this.watchId
             this.logEvent({ message: 'workout inbox started', active: !!this.watchId })
+            this.emit('status', this.getStatus())
             return !!this.watchId
         }
         catch (err) {
@@ -75,12 +78,34 @@ export class WorkoutInboxService extends IncyclistService {
         try {
             const id = this.watchId
             delete this.watchId
+            this.failed = false
+            this.emit('status', this.getStatus())
             if (id)
                 await this.getBindings()?.fileWatch?.unwatch(id)
         }
         catch (err) {
             this.logError(err as Error, 'stop')
         }
+    }
+
+    /**
+     * Provides the current state of the inbox
+     *
+     * - `active`: new downloads are imported
+     * - `off`: switched off by the user (or not started yet)
+     * - `no-access`: the download folder can't be watched (e.g. the user denied access on macOS)
+     * - `unsupported`: the platform has no file watch or download folder
+     *
+     * @emits status (on every change of the state)
+     */
+    getStatus(): WorkoutInboxStatus {
+        if (!this.isSupported())
+            return 'unsupported'
+        if (this.watchId)
+            return 'active'
+        if (this.failed)
+            return 'no-access'
+        return 'off'
     }
 
     /**

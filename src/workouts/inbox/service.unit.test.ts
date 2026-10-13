@@ -117,4 +117,28 @@ describe('WorkoutInboxService', () => {
     test('provides the workout library URL', () => {
         expect(service.getLibraryUrl()).toBe('https://whatsonzwift.com/workouts')
     })
+
+    describe('getStatus', () => {
+        test('active while watching', async () => {
+            await service.start()
+            expect(service.getStatus()).toBe('active')
+        })
+
+        test('no-access when the folder can not be watched', async () => {
+            fileWatch.watch.mockResolvedValue(undefined)
+            const onStatus = jest.fn()
+            service.on('status', onStatus)
+
+            await service.start()
+
+            expect(service.getStatus()).toBe('no-access')
+            expect(onStatus).toHaveBeenCalledWith('no-access')
+        })
+
+        test('off after switching off', async () => {
+            await service.start()
+            await service.setEnabled(false)
+            expect(service.getStatus()).toBe('off')
+        })
+    })
 })

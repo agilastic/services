@@ -9,3 +9,5 @@ export type WorkoutInboxError = {
     name: string
     error: string
 }
+
+export type WorkoutInboxStatus = 'active' | 'off' | 'no-access' | 'unsupported'
