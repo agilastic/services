@@ -104,7 +104,34 @@ export interface RLVDisplayProps extends RouteDisplayProps {
     videos?: Array<VideoDisplayProps>
 }
 
+/** Layout of the ride screen: bike computer (small unit at the bottom) or classic (bar at the top, separate windows) */
+export type RideLayout = 'computer' | 'classic'
+/** Screen shown on the bike computer - 'classic' switches the bike computer off and shows the classic layout */
+export type RideScreen = 'data' | 'map' | 'climb' | 'classic'
+/** order in which the screens are shown when switching (hotkey b) */
+export const RIDE_SCREENS:RideScreen[] = ['data','map','climb','classic']
+/** user setting that stores the current screen */
+export const RIDE_SCREEN_SETTING = 'preferences.rideScreen'
+
+/** How the map overlay is shown: close and following the rider (like a bike computer), or the complete route */
+export type MapViewMode = 'navigation' | 'overview'
+
+/** user setting that stores the map view mode */
+export const MAP_VIEW_SETTING = 'preferences.rideOverlays.map.view'
+/** zoom level of the map in navigation mode (about 150m across a small map) */
+export const MAP_NAVIGATION_ZOOM = 17
+/** distance (m) ahead of the rider used for the map bearing - looking further ahead keeps the map calm */
+export const MAP_BEARING_LOOKAHEAD = 50
+
 export interface MapOverlayDisplayProps extends OverlayDisplayProps {
+    /** navigation: zoomed in, follows the rider - overview: shows the complete route */
+    view?: MapViewMode
+    /** zoom level to use in navigation mode */
+    zoom?: number
+    /** navigation mode: the map is turned so that the riding direction points up (like a bike computer) */
+    headingUp?: boolean
+    /** riding direction in degrees (0 = north, clockwise), calm: towards a point a bit ahead on the route */
+    bearing?: number
     viewport?: MapViewPort
     viewportOverwrite?: boolean
     center?: LatLng
@@ -173,6 +200,10 @@ export interface CurrentRideDisplayProps extends IRideModeServiceDisplayProps {
     prevRides?: PrevRidesDisplayProps
     hideAll?: boolean
     shiftingPinned?: boolean
+    /** layout of the ride screen */
+    rideLayout?: RideLayout
+    /** screen shown on the bike computer ('classic' = no bike computer) */
+    rideScreen?: RideScreen
 
 }
 

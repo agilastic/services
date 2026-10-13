@@ -19,7 +19,7 @@ import { FollowRouteDisplayService } from "../route/FollowRouteDisplayService";
 import { WorkoutDisplayService } from "../workout/WorkoutDisplayService";
 import { INativeUI } from "../../api/ui";
 import { getBindings } from "../../api";
-import { CurrentRideDisplayProps, ICurrentRideService, PrevRidesDisplayProps, StartOverlayProps } from "../base/types";
+import { CurrentRideDisplayProps, ICurrentRideService, MAP_VIEW_SETTING, MapViewMode, PrevRidesDisplayProps, RIDE_SCREEN_SETTING, RIDE_SCREENS, RideLayout, RideScreen, StartOverlayProps } from "../base/types";
 import { PowerAdjustmentResult } from "../../workouts/ride/types";
 import { RouteSettings } from "../../routes/list/cards/types";
 import { FreeRideOption } from "../../routes/list/types";
@@ -355,6 +355,64 @@ export class RideDisplayService extends IncyclistService implements ICurrentRide
         }
     }
 
+    /**
+     * Provides the screen shown on the bike computer (default: data)
+     */
+    getRideScreen():RideScreen {
+        try {
+            const screen = this.getUserSettings().get(RIDE_SCREEN_SETTING,'data')
+            return RIDE_SCREENS.includes(screen) ? screen : 'data'
+        }
+        catch {
+            return 'data'
+        }
+    }
+
+    /**
+     * Provides the layout of the ride screen: the bike computer, or the classic layout
+     */
+    getRideLayout():RideLayout {
+        return this.getRideScreen()==='classic' ? 'classic' : 'computer'
+    }
+
+    /**
+     * Shows the next screen: data -> map -> climb -> classic layout -> data ... (remembered for the next rides)
+     *
+     * @emits overlay-update
+     */
+    nextRideScreen() {
+        try {
+            const current = RIDE_SCREENS.indexOf(this.getRideScreen())
+            const screen = RIDE_SCREENS[(current+1) % RIDE_SCREENS.length]
+            this.getUserSettings().set(RIDE_SCREEN_SETTING,screen)
+            this.logEvent({message:'ride screen changed', screen})
+            this.observer?.emit('overlay-update', this.getDisplayProperties())
+        }
+        catch(err) {
+            this.logError(err,'nextRideScreen')
+        }
+    }
+
+    /**
+     * Switches the map overlay between navigation (zoomed in, following the rider) and overview (complete route)
+     *
+     * The choice is remembered for the next rides.
+     *
+     * @emits overlay-update
+     */
+    setMapView(view:MapViewMode) {
+        try {
+            if (view!=='navigation' && view!=='overview')
+                return
+            this.getUserSettings().set(MAP_VIEW_SETTING,view)
+            this.logEvent({message:'map view changed', view})
+            this.observer?.emit('overlay-update', this.getDisplayProperties())
+        }
+        catch(err) {
+            this.logError(err,'setMapView')
+        }
+    }
+
     setOverlayPinned(overlay:string, pinned:boolean) {
         try {
             this.getUserSettings().set(`preferences.rideOverlays.${overlay}.pinned`,pinned)
@@ -450,7 +508,9 @@ export class RideDisplayService extends IncyclistService implements ICurrentRide
                 showShiftingButtons,
                 showDashboard,
                 showWorkout,
-                shiftingPinned: this.isOverlayPinned('shifting')
+                shiftingPinned: this.isOverlayPinned('shifting'),
+                rideLayout: this.getRideLayout(),
+                rideScreen: this.getRideScreen()
                 }
 
             const childProps = this.getRideModeService()?.getDisplayProperties(props)??{}

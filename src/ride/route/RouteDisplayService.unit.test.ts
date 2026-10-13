@@ -464,6 +464,74 @@ describe( 'RouteDisplayService', () => {
             const props = service.getOverlayProps('map', {hideAll: false} as any)
             expect(props.minimized).toBe(true)
         })
+
+        test('the map is shown in navigation mode by default, zoomed in', () => {
+            setupMocks(service, {
+                mockRideService: true,
+                userSettingsGet: jest.fn((_key, def) => def)
+            })
+            const props = service.getOverlayProps('map', {hideAll: false} as any) as any
+            expect(props.view).toBe('navigation')
+            expect(props.zoom).toBe(17)
+        })
+
+        test('the map can show the complete route', () => {
+            setupMocks(service, {
+                mockRideService: true,
+                userSettingsGet: jest.fn((key, def) => key==='preferences.rideOverlays.map.view' ? 'overview' : def)
+            })
+            const props = service.getOverlayProps('map', {hideAll: false} as any) as any
+            expect(props.view).toBe('overview')
+        })
+
+        describe('map bearing (heading-up)', () => {
+            // ~68m east, then ~111m north
+            const points = [
+                {lat:52, lng:9, routeDistance:0, cnt:0},
+                {lat:52, lng:9.001, routeDistance:68, cnt:1},
+                {lat:52.0004, lng:9.001, routeDistance:112, cnt:2},
+                {lat:52.001, lng:9.001, routeDistance:179, cnt:3},
+            ]
+            const route = { points, description:{ distance:179, isLoop:false, hasGpx:true } }
+
+            beforeEach(() => {
+                setupMocks(service, { mockRideService: true, userSettingsGet: jest.fn((_key, def) => def) })
+                Object.defineProperty(service, 'route', { get: () => route, configurable:true })
+            })
+
+            test('navigation turns the map in riding direction', () => {
+                ;(service as any).position = { ...points[0], heading:90 }
+                const props = service.getOverlayProps('map', {hideAll: false} as any) as any
+                expect(props.headingUp).toBe(true)
+                expect(props.bearing).toBeGreaterThan(80)
+                expect(props.bearing).toBeLessThan(100)
+            })
+
+            test('looks ahead, so the map turns before the corner', () => {
+                ;(service as any).position = { lat:52, lng:9.0009, routeDistance:61, heading:90 }
+                const bearing = service.getMapBearing()
+                expect(bearing).toBeLessThan(80)
+            })
+
+            test('at the end of the route the current direction is kept', () => {
+                ;(service as any).position = { ...points[3], heading:0 }
+                expect(service.getMapBearing()).toBe(0)
+            })
+
+            test('overview shows north up', () => {
+                setupMocks(service, { mockRideService: true, userSettingsGet: jest.fn((key, def) => key==='preferences.rideOverlays.map.view' ? 'overview' : def) })
+                ;(service as any).position = { ...points[0], heading:90 }
+                const props = service.getOverlayProps('map', {hideAll: false} as any) as any
+                expect(props.headingUp).toBe(false)
+                expect(props.bearing).toBeUndefined()
+            })
+        })
+
+        test('other overlays have no map view', () => {
+            setupMocks(service, {mockRideService: true})
+            const props = service.getOverlayProps('slope', {hideAll: false} as any) as any
+            expect(props.view).toBeUndefined()
+        })
     })
 
     describe('getNearbyRidesProps', () => {

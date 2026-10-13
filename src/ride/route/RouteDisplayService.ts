@@ -1,7 +1,7 @@
 import { CyclingMode, UpdateRequest } from "incyclist-devices";
 import { ActiveWorkoutLimit } from "../../workouts";
 import { RideModeService } from "../base/base";
-import { CurrentPosition, CurrentRideDisplayProps, ICurrentRideService, NearbyDisplayProps, OverlayDisplayProps, RouteDisplayProps, RouteMarker, SideViewsShown } from "../base";
+import { CurrentPosition, CurrentRideDisplayProps, ICurrentRideService, MAP_BEARING_LOOKAHEAD, MAP_NAVIGATION_ZOOM, MAP_VIEW_SETTING, MapOverlayDisplayProps, MapViewMode, NearbyDisplayProps, OverlayDisplayProps, RouteDisplayProps, RouteMarker, SideViewsShown } from "../base";
 import { Injectable } from "../../base/decorators";
 import { useUserSettings } from "../../settings";
 import { getHeading, getNextPosition, getPosition, GetPositionProps, LapPoint, useRouteList } from "../../routes";
@@ -14,6 +14,7 @@ import clone from "../../utils/clone";
 import { useDeviceRide } from "../../devices";
 import { FormattedNumber, getUnitConversionShortcuts, useUnitConverter } from "../../i18n";
 import { RoutePoint } from "../../types";
+import { calculateHeaderFromPoints } from "../../utils/geo";
 import { Observer } from "../../base/types";
 
 const MAX_INACTIVITY = 5000
@@ -260,7 +261,56 @@ export class RouteDisplayService extends RideModeService {
         const showMapEnabled = this.getUserSettings().get(`preferences.sideViews.${overlay}` ,true)
         const show = !props.hideAll
         const minimized = !showMapEnabled
+        if (overlay==='map') {
+            const view = this.getMapView()
+            const headingUp = view==='navigation'
+            const bearing = headingUp ? this.getMapBearing() : undefined
+            return {show,minimized, view, zoom:MAP_NAVIGATION_ZOOM, headingUp, bearing} as MapOverlayDisplayProps
+        }
         return {show,minimized}
+    }
+
+    /**
+     * Provides the riding direction for a heading-up map (0 = north, clockwise)
+     *
+     * Uses the direction towards a point a bit ahead on the route instead of the direction of the
+     * current route segment - GPS points are dense and noisy, so this keeps the map calm.
+     */
+    getMapBearing():number|undefined {
+        try {
+            const pos = this.position
+            const route = this.route
+            if (!pos || !route?.points?.length)
+                return undefined
+
+            const total = route.description?.distance
+            let ahead = (pos.routeDistance ?? 0) + MAP_BEARING_LOOKAHEAD
+            if (total && ahead > total)
+                ahead = route.description?.isLoop ? ahead % total : total
+
+            const target = getPosition(route, { distance: ahead, nearest: true })
+            const bearing = calculateHeaderFromPoints(pos, target)
+            if (bearing===undefined || isNaN(bearing) || (target?.lat===pos.lat && target?.lng===pos.lng))
+                return pos.heading
+
+            return Math.round((bearing % 360 + 360) % 360)
+        }
+        catch {
+            return this.position?.heading
+        }
+    }
+
+    /**
+     * Provides how the map overlay should be shown (default: navigation)
+     */
+    getMapView():MapViewMode {
+        try {
+            const view = this.getUserSettings().get(MAP_VIEW_SETTING,'navigation')
+            return view==='overview' ? 'overview' : 'navigation'
+        }
+        catch {
+            return 'navigation'
+        }
     }
 
     /**

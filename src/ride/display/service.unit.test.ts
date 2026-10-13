@@ -308,7 +308,7 @@ describe('RideDisplayService', () => {
 
                 expect(emit).toHaveBeenCalledWith('overlay-update', OC( {
                     hideAll: false,
-                    map: {show:true, minimized:false},
+                    map: OC({show:true, minimized:false}),
                     sideViews: OC({enabled:false, hide:false, left:false, right:false}),
                     upcomingElevation: {show:true, minimized:false},
                     totalElevation: {show:true, minimized:false},
@@ -369,6 +369,59 @@ describe('RideDisplayService', () => {
             service.setOverlayPinned('workout-control', true)
 
             expect(setFn).toHaveBeenCalledWith('preferences.rideOverlays.workout-control.pinned', true)
+        })
+
+        test('setMapView stores the map view and updates the overlays', () => {
+            const setFn = jest.fn()
+            setupMocks(undefined, setFn)
+            const emit = jest.fn()
+            const s = service as any
+            s.observer = new Observer()
+            s.observer.emit = emit
+
+            service.setMapView('overview')
+
+            expect(setFn).toHaveBeenCalledWith('preferences.rideOverlays.map.view', 'overview')
+            expect(emit).toHaveBeenCalledWith('overlay-update', expect.anything())
+        })
+
+        test('the bike computer with the data screen is the default', () => {
+            setupMocks(jest.fn((_k,d)=>d))
+            expect(service.getRideScreen()).toBe('data')
+            expect(service.getRideLayout()).toBe('computer')
+        })
+
+        test('nextRideScreen cycles through data, map, climb and the classic layout', () => {
+            const settings:Record<string,any> = {}
+            setupMocks(jest.fn((k,d)=>settings[k]??d), jest.fn((k,v)=>{settings[k]=v}))
+            const emit = jest.fn()
+            const s = service as any
+            s.observer = new Observer()
+            s.observer.emit = emit
+
+            const screens:string[] = []
+            for (let i=0;i<4;i++) {
+                service.nextRideScreen()
+                screens.push(service.getRideScreen())
+            }
+
+            expect(screens).toEqual(['map','climb','classic','data'])
+            expect(emit).toHaveBeenCalledWith('overlay-update', expect.objectContaining({ rideScreen:'map', rideLayout:'computer' }))
+            expect(emit).toHaveBeenCalledWith('overlay-update', expect.objectContaining({ rideScreen:'classic', rideLayout:'classic' }))
+        })
+
+        test('an unknown stored screen falls back to the data screen', () => {
+            setupMocks(jest.fn((k,d)=> k==='preferences.rideScreen' ? 'foo' : d))
+            expect(service.getRideScreen()).toBe('data')
+        })
+
+        test('setMapView ignores unknown views', () => {
+            const setFn = jest.fn()
+            setupMocks(undefined, setFn)
+
+            service.setMapView('satellite' as any)
+
+            expect(setFn).not.toHaveBeenCalled()
         })
 
         test('setOverlayPinned does not throw when settings access throws', () => {
