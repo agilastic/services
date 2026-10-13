@@ -11,7 +11,7 @@ import { useDeviceConfiguration } from "../devices/configuration";
 import { useDevicePairing } from "../devices/pairing";
 import { initPairingVisitTracker, usePairingVisitTracker } from "../devices/page/base/visit-log-factory";
 import { useFreeRideService, useRouteList } from "../routes";
-import { useWorkoutList } from "../workouts";
+import { useWorkoutInbox, useWorkoutList } from "../workouts";
 import { useActiveRides, useActivityList } from "../activities";
 import { IMessageQueueBinding } from "../api/mq";
 import { OnlineStateMonitoringService, useOnlineStatusMonitoring } from "../monitoring";
@@ -599,7 +599,9 @@ export class UserInterfaceServcie extends IncyclistService {
             ]
 
             await Promise.all(promises)
-            
+
+            // workouts downloaded into the download folder are imported automatically (once the list is loaded)
+            await useWorkoutInbox().start()
         }
         catch (err) {
             this.logError(err,'preloadData')
