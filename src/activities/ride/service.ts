@@ -32,6 +32,10 @@ import { sleep } from "../../utils/sleep";
 
 const SAVE_INTERVAL = 5000;
 
+/** user setting: after a ride, save a GPX into the download folder and open the Garmin Connect import page */
+export const GARMIN_CONNECT_GPX_EXPORT = 'preferences.garminConnect.gpxExport'
+export const GARMIN_CONNECT_IMPORT_URL = 'https://connect.garmin.com/app/import-data'
+
 /**
  * This service is used by the Front-End to manage the state of on ongoing ride (activity),
  * to implement the business logic to display the content for the dashboard
@@ -796,6 +800,7 @@ export class ActivityRideService extends IncyclistService {
 
                 this._save().catch( err=>{ this.logError(err,'save') })
                 success = await this._convertAndUpload()
+                await this.exportForGarminConnect()
 
                 sleep(0).then( ()=> {
                     delete this.saveObserver
@@ -1304,6 +1309,44 @@ export class ActivityRideService extends IncyclistService {
 
         return convertSuccess && uploadSuccess
 
+    }
+
+    /**
+     * Manual Garmin Connect upload (user setting): saves the ride as GPX into the user's download
+     * folder, opens the Garmin Connect import page and shows the file, so it can simply be dropped there.
+     * Never throws - a failed export must not affect saving the activity.
+     */
+    protected async exportForGarminConnect():Promise<void> {
+        try {
+            if (!this.getUserSettings().get(GARMIN_CONNECT_GPX_EXPORT, false))
+                return
+
+            const data = await ActivityConverter.convert(this.activity,'gpx') as string
+            const fileName = await this.getGarminExportFileName()
+            await this.getFileSystemBinding().writeFile(fileName, Buffer.from(data))
+            this.logEvent({message:'activity exported for Garmin Connect', format:'gpx'})
+
+            const ui = this.getBindings().ui
+            ui?.openBrowserWindow(GARMIN_CONNECT_IMPORT_URL)
+            ui?.showItemInFolder(fileName)
+        }
+        catch(err) {
+            this.logError(err,'exportForGarminConnect')
+        }
+    }
+
+    protected async getGarminExportFileName():Promise<string> {
+        const bindings = this.getBindings()
+        const dir = bindings.appInfo?.getDownloadsDir?.()
+        if (!dir)
+            return this.getTargetFileName('gpx')
+
+        // e.g. Incyclist_RLV_Gravel_Benther_Berg_2026-10-13_1530.gpx
+        const title = (this.activity.title ?? 'Ride').replaceAll(/[^\p{L}\p{N}]+/gu,'_').replaceAll(/^_+|_+$/g,'').slice(0,60)
+        const start = new Date(Date.parse(this.activity.startTime) || Date.now())
+        const pad = (n:number) => String(n).padStart(2,'0')
+        const date = `${start.getFullYear()}-${pad(start.getMonth()+1)}-${pad(start.getDate())}_${pad(start.getHours())}${pad(start.getMinutes())}`
+        return bindings.path.join(dir, `Incyclist_${title}_${date}.gpx`)
     }
 
     protected getSaveInterval():number{

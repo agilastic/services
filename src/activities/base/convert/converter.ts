@@ -2,6 +2,7 @@ import { ActivityDetails } from "../model";
 import { ActivityConverterFactory } from "./factory";
 import { LocalFitConverter } from "./fit";
 import { TcxConverter } from "./tcx";
+import { GpxConverter } from "./gpx";
 
 // lazy initialisation of converters
 
@@ -15,6 +16,7 @@ export class ActivityConverter {
             ActivityConverter.factory = new ActivityConverterFactory()
             ActivityConverter.factory.add('fit',new LocalFitConverter())
             ActivityConverter.factory.add('tcx', new TcxConverter())
+            ActivityConverter.factory.add('gpx', new GpxConverter())
         }
 
         return await ActivityConverter.factory.convert(activity,format)

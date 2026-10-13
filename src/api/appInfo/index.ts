@@ -16,6 +16,8 @@ export interface IAppInfo {
     getAppDir():string
     getSourceDir():string
     getTempDir():string
+    /** user's download folder (e.g. ~/Downloads), if the platform provides it */
+    getDownloadsDir?():string|undefined
     isApp():boolean
     getChannel():AppChannel
     session:string

@@ -11,7 +11,7 @@ import { waitNextTick } from "../../utils"
 
 import troll from '../../../__tests__/data/activities/troll-90.json'
 import prev2 from '../../../__tests__/data/activities/prevRide1.json'
-import { ActivityDetails, ActivityInfo, buildSummary, DB_VERSION } from '../base'
+import { ActivityConverter, ActivityDetails, ActivityInfo, buildSummary, DB_VERSION } from '../base'
 import { PastActivityLogEntry } from "../list"
 import { Observer } from "../../base/types/observer"
 import { DeviceRideService } from "../../devices"
@@ -1295,6 +1295,80 @@ describe('ActivityRideService',()=>{
             expect((service as any).getTotalDistance()).toBe(0)
             expect((service as any).getTotalElevation()).toBe(0)
             expect(logError).not.toHaveBeenCalled()
+        })
+    })
+
+
+    describe('exportForGarminConnect',()=>{
+        let service:ActivityRideService
+        let settings:Record<string,unknown>
+        let writeFile:jest.Mock
+        let ui:{openBrowserWindow:jest.Mock, showItemInFolder:jest.Mock}
+        let downloadsDir:string|undefined
+
+        beforeEach( ()=>{
+            service = new ActivityRideService()
+            settings = {}
+            writeFile = jest.fn().mockResolvedValue(undefined)
+            ui = { openBrowserWindow: jest.fn(), showItemInFolder: jest.fn() }
+            downloadsDir = '/Users/test/Downloads'
+
+            ;(service as any).activity = { title:'RLV Gravel: Benther Berg', startTime:'2026-05-31T12:10:22.000Z', fileName:'/act/a1.json', logs:[] }
+            ;(service as any).getUserSettings = jest.fn( ()=> ({ get: jest.fn((key,def)=> settings[key] ?? def) }))
+            ;(service as any).getFileSystemBinding = jest.fn( ()=> ({ writeFile }))
+            ;(service as any).logError = jest.fn()
+            Inject('Bindings', {
+                ui,
+                appInfo: { getDownloadsDir: ()=> downloadsDir },
+                path: { join: (...parts:string[])=> parts.join('/') },
+            })
+            jest.spyOn(ActivityConverter,'convert').mockResolvedValue('<gpx/>')
+        })
+
+        afterEach( ()=>{
+            Inject('Bindings', null)
+            jest.restoreAllMocks()
+        })
+
+        const exportGpx = ()=> (service as any).exportForGarminConnect()
+
+        test('does nothing when the setting is off',async ()=>{
+            await exportGpx()
+
+            expect(ActivityConverter.convert).not.toHaveBeenCalled()
+            expect(ui.openBrowserWindow).not.toHaveBeenCalled()
+        })
+
+        test('saves the GPX into the download folder, opens Garmin Connect and shows the file',async ()=>{
+            settings['preferences.garminConnect.gpxExport'] = true
+
+            await exportGpx()
+
+            const file = writeFile.mock.calls[0][0]
+            expect(file).toMatch(/^\/Users\/test\/Downloads\/Incyclist_RLV_Gravel_Benther_Berg_2026-05-31_\d{4}\.gpx$/)
+            expect(writeFile.mock.calls[0][1].toString()).toBe('<gpx/>')
+            expect(ui.openBrowserWindow).toHaveBeenCalledWith('https://connect.garmin.com/app/import-data')
+            expect(ui.showItemInFolder).toHaveBeenCalledWith(file)
+        })
+
+        test('falls back to the activity folder without a download folder',async ()=>{
+            settings['preferences.garminConnect.gpxExport'] = true
+            downloadsDir = undefined
+
+            await exportGpx()
+
+            expect(writeFile.mock.calls[0][0]).toBe('/act/a1.gpx')
+        })
+
+        test('a failed conversion does not throw and opens nothing',async ()=>{
+            settings['preferences.garminConnect.gpxExport'] = true
+            ;(ActivityConverter.convert as jest.Mock).mockRejectedValue(new Error('activity does not contain any position'))
+
+            await expect(exportGpx()).resolves.toBeUndefined()
+
+            expect(writeFile).not.toHaveBeenCalled()
+            expect(ui.openBrowserWindow).not.toHaveBeenCalled()
+            expect((service as any).logError).toHaveBeenCalled()
         })
     })
 
