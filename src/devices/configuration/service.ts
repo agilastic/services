@@ -754,10 +754,10 @@ export class DeviceConfigurationService  extends IncyclistService{
             this.addWifiInterface()
         }
         else {
-            const wifiEnforcedVisible = this.getUserSettings().get('wifiEnforcedVisible',false)
-
-            const invisible = wifiEnforcedVisible ? false : !this.isWindows()
-            const enabled = this.isWindows() ? (wifi.enabled??false) : true
+            // fork: Direct Connect is shown on all platforms and the user's choice is kept - when it is
+            // switched off, no mDNS (Bonjour) discovery runs in the local network
+            const invisible = false
+            const enabled = wifi.enabled ?? !this.isWindows()
             const idx = this.settings.interfaces.indexOf(wifi)
             this.settings.interfaces[idx] = {name:'wifi',enabled,invisible}
 
@@ -1184,10 +1184,8 @@ export class DeviceConfigurationService  extends IncyclistService{
 
     protected addWifiInterface():void {
 
-        const wifiEnforcedVisible = this.getUserSettings().get('wifiEnforcedVisible',false)
-
         const enabled = !this.isWindows()
-        const invisible = wifiEnforcedVisible ? false : !this.isWindows()
+        const invisible = false
 
         this.settings.interfaces.push( {name:'wifi',enabled,invisible} )
         this.logEvent({message:'interface added',interface:'wifi', enabled})   

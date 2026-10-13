@@ -63,7 +63,7 @@ exports[`DeviceConfigurationService init empty configuration 1`] = `
     },
     {
       "enabled": true,
-      "invisible": true,
+      "invisible": false,
       "name": "wifi",
     },
   ],

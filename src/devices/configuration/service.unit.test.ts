@@ -173,6 +173,28 @@ describe( 'DeviceConfigurationService',()=>{
 
         })
 
+        test('macOS: Direct Connect is visible and enabled by default',async ()=>{
+            testData= {}
+            service.doesAppSupportsWifi = jest.fn().mockReturnValue(true)
+            service.isWindows = jest.fn().mockReturnValue(false)
+
+            await service.init()
+
+            const wifi = service.settings.interfaces.find( i=> i.name === 'wifi')
+            expect(wifi).toMatchObject({name:'wifi',enabled:true,invisible:false})
+        })
+
+        test('macOS: a disabled Direct Connect stays disabled after a restart',async ()=>{
+            testData= { interfaces:[ {name:'wifi', enabled:false, invisible:true} ] }
+            service.doesAppSupportsWifi = jest.fn().mockReturnValue(true)
+            service.isWindows = jest.fn().mockReturnValue(false)
+
+            await service.init()
+
+            const wifi = service.settings.interfaces.find( i=> i.name === 'wifi')
+            expect(wifi).toMatchObject({name:'wifi',enabled:false,invisible:false})
+        })
+
         test('proper configuration',async ()=>{
             const settings = clone(SampleSettings)
             testData = settings
