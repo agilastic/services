@@ -4,6 +4,7 @@ export * from './base/model'
 export * from './base/graph'
 export * from './page'
 export * from './inbox'
+export * from './generator'
 // `WorkoutCalendarService`/`useWorkoutCalendar` (RC-6's `getScheduledToday()`) were never
 // re-exported here, so mobile's post-pairing-prompt session (5.7) could not reach them via
 // the package's public entry point at all - confirmed by `require('incyclist-services').useWorkoutCalendar`

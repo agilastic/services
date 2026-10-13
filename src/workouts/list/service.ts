@@ -973,8 +973,26 @@ export class WorkoutListService extends IncyclistService  implements IListServic
     }
 
     protected async _import( info:FileInfo):Promise<WorkoutCard> {
-
         const workout = await this.parse(info)
+        return this.addWorkoutCard(workout)
+    }
+
+    /**
+     * adds a workout (e.g. a generated workout) to "My Workouts" and stores it
+     *
+     * If the same workout already exists, the existing card will be updated
+     *
+     * @param workout the workout to be added
+     * @returns the card representing the workout
+     * @emits updated   list has been updated
+     */
+    addWorkout( workout:Workout):WorkoutCard {
+        const card = this.addWorkoutCard(workout)
+        this.emitLists('updated')
+        return card
+    }
+
+    protected addWorkoutCard( workout:Workout):WorkoutCard {
         const existing = this.findCard(workout)
 
         if (existing) {
