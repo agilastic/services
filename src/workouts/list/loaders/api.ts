@@ -1,3 +1,4 @@
+import { EventLogger } from 'gd-eventlog'
 import { Observer } from "../../../base/types/observer";
 import { waitNextTick } from "../../../utils";
 import { IncyclistWorkoutsApi} from "../../base/api";
@@ -24,23 +25,31 @@ export class WorkoutsApiLoader extends Loader {
 
         this.loadObserver = new Observer()
 
-        this.api.getWorkouts().catch().then (async (res:Array<Workout|Plan>) => {
-            this.workouts = res
+        // getWorkouts() returns undefined when the server can't be reached (offline, not configured) -
+        // 'done' must be emitted in any case, otherwise the workout list waits forever
+        this.api.getWorkouts().catch( ()=>undefined ).then (async (res:Array<Workout|Plan>|undefined) => {
+            const records = Array.isArray(res) ? res : []
+            this.workouts = records
 
-            res.forEach( record=> {
+            try {
+                records.forEach( record=> {
 
-                let data = record;
+                    let data = record;
 
-                if (record.type==='workout') data = new Workout(record)
-                if (record.type==='plan') data = new Plan(record as PlanDefinition)
+                    if (record.type==='workout') data = new Workout(record)
+                    if (record.type==='plan') data = new Plan(record as PlanDefinition)
 
-                const id = data.id
-                const fromDB = this.getFromDB(id)
-                if (!fromDB || fromDB.hash!==data.hash) {
-                    this.loadObserver.emit( fromDB?  'workout.updated' : 'workout.added', data)
-                    this.save(record)
-                }
-            })
+                    const id = data.id
+                    const fromDB = this.getFromDB(id)
+                    if (!fromDB || fromDB.hash!==data.hash) {
+                        this.loadObserver.emit( fromDB?  'workout.updated' : 'workout.added', data)
+                        this.save(record)
+                    }
+                })
+            }
+            catch(err) {
+                new EventLogger('WorkoutsApi').logEvent({message:'error', fn:'load', error:(err as Error).message})
+            }
 
             this.loadObserver.emit('done')
             await waitNextTick()
