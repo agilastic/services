@@ -534,7 +534,7 @@ describe('WorkoutRide',()=>{
         workout.addStep( {type:'step', steady:true, work:true, duration:20, power:{min:120,max:120,type:'pct of FTP'}, text:'Sprint'} )
         workout.addStep( {type:'step', steady:true, work:false, duration:30, power:{min:50,max:50,type:'pct of FTP'}} )
 
-        let s:WorkoutRide
+        let s
 
         beforeEach( ()=>{
             jest.useFakeTimers()
