@@ -1,7 +1,7 @@
 import {EventLogger} from 'gd-eventlog'
-import { RouteApiDescription, RouteApiDetail, RouteDescriptionQuery } from "./types";
+import { RouteApiDescription, RouteApiDetail, RouteDescriptionQuery, RouteServer } from "./types";
 import { AxiosInstance, AxiosRequestConfig } from "axios";
-import { NO_CACHE, ROUTE_API } from './consts'
+import { NO_CACHE, ROUTE_API, ROUTE_SERVERS } from './consts'
 import { IncyclistRestApiClient, getServerUrl, ServerNotConfiguredError } from '../../../api';
 import { useUserSettings } from '../../../settings';
 import { RoutePoint } from '../types';
@@ -42,7 +42,34 @@ export default class IncyclistRoutesApi {
         return getServerUrl(this.getSetting.bind(this), ROUTE_API, 'dlws', '/api/v1/routes')
     }
 
-    async getRouteDescriptions(query:RouteDescriptionQuery, throws:boolean = false): Promise<Array<RouteApiDescription>> {
+    /**
+     * Provides the route servers to be queried
+     *
+     * These are the enabled entries of the `ROUTE_SERVERS` setting. Without this setting, the single
+     * route server configured via `ROUTE_API` (or derived from `DOMAIN`) is used, as before.
+     *
+     * @returns the enabled route servers (empty if none is configured)
+     */
+    getRouteServers():Array<RouteServer> {
+        const configured = this.getSetting(ROUTE_SERVERS, undefined)
+        if (Array.isArray(configured)) {
+            return configured
+                .filter( (s:RouteServer) => typeof s?.url==='string' && s.url.trim().length>0 && s.enabled!==false )
+                .map( (s:RouteServer,idx:number) => ({...s, id: s.id ?? `server-${idx}`, url: s.url.trim().replace(/\/+$/,'') }) )
+        }
+
+        const url = this.getBaseUrl()
+        return url ? [{ id:'default', url }] : []
+    }
+
+    /**
+     * Loads the route descriptions from a route server
+     *
+     * @param query    type (gpx|video) and optional category
+     * @param throws   throw errors instead of returning undefined
+     * @param server   base URL of the route server (default: the single configured route server)
+     */
+    async getRouteDescriptions(query:RouteDescriptionQuery, throws:boolean = false, server?:string): Promise<Array<RouteApiDescription>> {
         const {type='gpx',category} = query;
 
         let url  = (type === 'gpx' ) ? `?private=false` : `/?type=${type}`;
@@ -50,7 +77,7 @@ export default class IncyclistRoutesApi {
             url += "&category=${category}"
 
         try {
-            const res = await this._get( url, NO_CACHE )       
+            const res = await this._get( url, NO_CACHE, server )       
             return res.data;           
         }
         catch(err) {
@@ -82,10 +109,16 @@ export default class IncyclistRoutesApi {
 
     }
 
-    async getRouteDetails( routeId: string): Promise<RouteApiDetail> {
+    /**
+     * Loads the details of a route
+     *
+     * @param routeId  id of the route
+     * @param server   base URL of the route server the route was loaded from (default: the single configured route server)
+     */
+    async getRouteDetails( routeId: string, server?:string): Promise<RouteApiDetail> {
 
         try {
-            const res = await this._get( `/${routeId}` )  
+            const res = await this._get( `/${routeId}`, undefined, server )  
             IncyclistRoutesApi.verify(res.data)
             return res.data;           
         }
@@ -156,13 +189,13 @@ export default class IncyclistRoutesApi {
 
     }
 
-    protected async _get(url:string, ...args) {
+    protected async _get(url:string, config?:AxiosRequestConfig, server?:string) {
         const api = this.getApi()
-        const baseUrl = this.getBaseUrl()
+        const baseUrl = server ?? this.getBaseUrl()
         if (!baseUrl)
             throw new ServerNotConfiguredError('route')
         
-        return await api.get( baseUrl+url, ...args )       
+        return await api.get( baseUrl+url, config )       
     }
 
     // only to be used by unit tests

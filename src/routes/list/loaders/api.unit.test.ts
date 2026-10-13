@@ -82,6 +82,69 @@ describe('RoutesApiLoader',()=>{
 
 
 
+        describe('multiple route servers',()=>{
+            const A = { id:'a', name:'Server A', url:'https://a.example.com/routes' }
+            const B = { id:'b', name:'Server B', url:'https://b.example.com/routes' }
+            const route = (id:string, extra={}) => ({ id, title:`Route ${id}`, version:1, video:{url:`https://x/${id}.mp4`}, ...extra }) as RouteApiDescription
+
+            let processed:Array<RouteApiDescription>
+
+            const setupServers = (lists:Record<string,Array<RouteApiDescription>|Error>) => {
+                api = IncyclistRoutesApi.getInstance()
+                api.getRouteServers = jest.fn().mockReturnValue([A,B])
+                api.getRouteDescriptions = jest.fn( async (q, _throws, server) => {
+                    if (q.type==='gpx') return []
+                    const res = lists[server]
+                    if (res instanceof Error) throw res
+                    return res ?? []
+                })
+                processed = []
+                service.processRouteFromApi = jest.fn( async (descr) => { processed.push(descr) })
+                service.loadDetails = jest.fn()
+            }
+
+            test('loads the routes of all servers and remembers their server',async ()=>{
+                setupServers({ [A.url]:[route('1')], [B.url]:[route('2')] })
+
+                await run()
+
+                expect(processed.map(d=>[d.id,d.routeServer])).toEqual([['1',A.url],['2',B.url]])
+            })
+
+            test('uses the server name as provider if the route has none',async ()=>{
+                setupServers({ [A.url]:[route('1'), route('2',{provider:{name:'Own'}})], [B.url]:[] })
+
+                await run()
+
+                expect(processed.map(d=>d.provider?.name)).toEqual(['Server A','Own'])
+            })
+
+            test('skips a route id that was already loaded from another server',async ()=>{
+                setupServers({ [A.url]:[route('1')], [B.url]:[route('1'), route('3')] })
+
+                await run()
+
+                expect(processed.map(d=>[d.id,d.routeServer])).toEqual([['1',A.url],['3',B.url]])
+            })
+
+            test('a server that cannot be reached does not affect the others',async ()=>{
+                setupServers({ [A.url]:new Error('Network Error'), [B.url]:[route('2')] })
+
+                await run()
+
+                expect(processed.map(d=>d.id)).toEqual(['2'])
+            })
+
+            test('loads route details from the route\'s server',async ()=>{
+                setupApiMock({fn: ()=>undefined})
+                api.getRouteDetails = jest.fn().mockResolvedValue(JSON.parse(JSON.stringify(valdrome)))
+
+                await service.getDetails({ description:{ id:'r1', routeServer:B.url } })
+
+                expect(api.getRouteDetails).toHaveBeenCalledWith('r1', B.url)
+            })
+        })
+
         describe('recording date',()=>{
             const descr = { id:'r1', title:'Route 1', version:1, recordedAt:'2026-06-10T13:32:42Z', video:{url:'https://example.com/r1.mp4'} } as RouteApiDescription
 

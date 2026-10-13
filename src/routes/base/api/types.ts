@@ -7,6 +7,20 @@ export type RouteDescriptionQuery = {
     type:RouteType
 }
 
+/**
+ * A route server (route API), as configured in the user setting `ROUTE_SERVERS`
+ */
+export type RouteServer = {
+    /** stable identifier of the server */
+    id: string
+    /** name shown in the UI, also used as provider name for routes without a provider */
+    name?: string
+    /** base URL of the route API, e.g. `https://example.com/rlv/api/v1/routes` */
+    url: string
+    /** disabled servers are not queried (default: enabled) */
+    enabled?: boolean
+}
+
 export interface RouteApiDescription extends RouteBase {
     routeId?: string;   
     hash?: string;
@@ -29,6 +43,8 @@ export interface RouteApiDescription extends RouteBase {
     isDeleted?:boolean
     /** date the route (video) was recorded, ISO 8601 */
     recordedAt?: string
+    /** base URL of the route server this route was loaded from (set by the client) */
+    routeServer?: string
     selectableSegments?: Array<RouteSegment>
 
     

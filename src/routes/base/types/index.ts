@@ -133,6 +133,8 @@ export interface    RouteInfo extends RouteBase{
     tsImported?: number,
     /** date the route (video) was recorded, ISO 8601 - provided by the route server */
     recordedAt?: string,
+    /** base URL of the route server the route was loaded from */
+    routeServer?: string,
     tsLastChange?:number,
     tsLastStart?: number,
     tsReleased?:number,

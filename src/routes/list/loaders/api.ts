@@ -1,9 +1,9 @@
 import { EventLogger } from "gd-eventlog";
 import { Observer, PromiseObserver } from "../../../base/types/observer";
 import IncyclistRoutesApi from "../../base/api";
-import { RouteApiDescription, RouteApiDetail } from "../../base/api/types";
+import { RouteApiDescription, RouteApiDetail, RouteServer } from "../../base/api/types";
 import { Route } from "../../base/model/route";
-import { RouteInfo } from "../../base/types";
+import { RouteInfo, RouteType } from "../../base/types";
 import { addDetails } from "../../base/utils/route";
 import { RoutesDbLoader } from "./db";
 import { Loader,LoadDetailsTargets } from "./types";
@@ -15,9 +15,12 @@ const ROUTE_DETAILS_CONCURRENCY = 4
 const valid = (v) => (v!==undefined && v!==null)
 
 class ApiError extends Error {
-    constructor( error:Error, private readonly _type:string ) {super(error.message)}
+    constructor( error:Error, private readonly _type:string, private readonly _server?:string ) {super(error.message)}
     get type (): string {
         return this._type
+    }
+    get server (): string|undefined {
+        return this._server
     }
 
 }
@@ -56,12 +59,19 @@ export class RoutesApiLoader extends Loader<RouteApiDescription> {
         if (this.loadObserver)
             return this.loadObserver
 
-        // run two async REST queries in parallel
-        const enrichApi = (v:RouteApiDescription,type)=> ({type, ...v })
-        const api = [
-            this.api.getRouteDescriptions({type:'gpx'},true).then( v=> v.map(e=>enrichApi(e,'gpx'))).catch(error => {throw new ApiError(error,'gpx')}) ,
-            this.api.getRouteDescriptions({type:'video'},true).then( v=> v.map(e=>enrichApi(e,'video'))).catch(error => {throw new ApiError(error,'video')}) ,
-        ]
+        // query all route servers in parallel (gpx and video lists) - a server that fails does not
+        // affect the others. Each route remembers its server, so its details are loaded from there.
+        const enrichApi = (v:RouteApiDescription,type:RouteType,server:RouteServer)=> ({
+            type, ...v,
+            routeServer: server.url,
+            provider: v.provider ?? (server.name ? {name:server.name} : undefined)
+        })
+        const query = (type:RouteType, server:RouteServer) =>
+            this.api.getRouteDescriptions({type},true,server.url)
+                .then( v=> (v??[]).map(e=>enrichApi(e,type,server)))
+                .catch(error => {throw new ApiError(error,type,server.url)})
+
+        const api = this.api.getRouteServers().flatMap( server => [ query('gpx',server), query('video',server) ])
 
         this.loadObserver = new Observer()
 
@@ -78,18 +88,22 @@ export class RoutesApiLoader extends Loader<RouteApiDescription> {
     private async onLoadDone(api,res) {
         // join lists
         const loadDetailRequired: Array<{route:Route, added:boolean}> = []
+        const seen = new Map<string,string>()   // route id -> route server
 
         // for loop as we have asyncs here
         for ( let i=0; i<res.length;i++) {
             const p = res[i]
 
             if (p.status!=='fulfilled') {                   
-                this.logger.logEvent({message: 'could not load route list',reason:p.reason?.message, type:p.reason?.type})
+                this.logger.logEvent({message: 'could not load route list',reason:p.reason?.message, type:p.reason?.type, server:p.reason?.server})
                 continue;
             }
 
             for (let j=0;j<p.value.length;j++) {
-                await this.processRouteFromApi(p.value[j],loadDetailRequired)
+                const descr = p.value[j]
+                if (this.isDuplicate(descr, seen))
+                    continue
+                await this.processRouteFromApi(descr,loadDetailRequired)
             }
             
         }
@@ -105,6 +119,18 @@ export class RoutesApiLoader extends Loader<RouteApiDescription> {
         this.loadObserver.stop()
         delete this.loadObserver        
         
+    }
+
+    // the same route id on two servers: the first server wins (mirrors are not supported yet)
+    protected isDuplicate(descr:RouteApiDescription, seen:Map<string,string>):boolean {
+        const id = descr.routeId??descr.id
+        const server = seen.get(id)
+        if (server!==undefined && server!==descr.routeServer) {
+            this.logger.logEvent({message:'duplicate route skipped', id, title:descr.title, server:descr.routeServer, usedServer:server})
+            return true
+        }
+        seen.set(id, descr.routeServer)
+        return false
     }
 
     private async processRouteFromApi(descr,items) {
@@ -274,16 +300,16 @@ export class RoutesApiLoader extends Loader<RouteApiDescription> {
 
     protected async getDetails(route:Route):Promise<void> {
 
-        const details = await this.api.getRouteDetails(route.description.legacyId||route.description.id)
+        const details = await this.api.getRouteDetails(route.description.legacyId||route.description.id, route.description.routeServer)
         addDetails(route,details)
 
             
     }
 
     protected buildRouteInfo( descr:RouteApiDescription, isLocal?:boolean): RouteInfo {
-        const { id,routeId,title,localizedTitle,country,distance,elevation, category,provider, video, requiresDownload,points,previewUrl,downloadUrl,routeHash,version,isDeleted,recordedAt} = descr
+        const { id,routeId,title,localizedTitle,country,distance,elevation, category,provider, video, requiresDownload,points,previewUrl,downloadUrl,routeHash,version,isDeleted,recordedAt,routeServer} = descr
         
-        const data:RouteInfo = { title,localizedTitle,country,distance,elevation,provider,category,previewUrl,requiresDownload,downloadUrl,routeHash,version,isDeleted,recordedAt}
+        const data:RouteInfo = { title,localizedTitle,country,distance,elevation,provider,category,previewUrl,requiresDownload,downloadUrl,routeHash,version,isDeleted,recordedAt,routeServer}
 
         data.hasVideo = false;
         data.hasGpx = false;
