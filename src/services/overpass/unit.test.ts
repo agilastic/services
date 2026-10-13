@@ -144,7 +144,7 @@ describe ('OverpassClient Unit Test' ,() => {
                 method: 'POST',
                 body: 'myquery',
                 referrerPolicy: 'unsafe-url',
-                headers: expect.objectContaining({ Referer: 'https://incyclist.com' })
+                headers: expect.objectContaining({ Referer: 'https://github.com/agilastic/Incyclist-Desktop-App', 'User-Agent': expect.stringMatching(/^ForkyCyclist\//) })
             }))
             expect(res.data).toBe('result')
             expect(res.status).toBe(200)

@@ -8,6 +8,7 @@ import { UserSettingsService, useUserSettings } from '../../settings';
 import { AxiosResponse } from 'axios';
 import type { IFetchBinding } from '../../api/fetch/types';
 
+const FORKYCYCLIST_URL = 'https://github.com/agilastic/Incyclist-Desktop-App'
 const OVERPASS_URL_PRIMARY = 'https://overpass-api.de/api/interpreter';
 //const OVERPASS_URL_ALT1 = 'https://overpass.private.coffee';
 const OVERPASS_URL_ALT2 = 'https://lz4.overpass-api.de/api/interpreter';
@@ -58,7 +59,8 @@ export class OverpassApi extends AppApiBase {
         const version = this.getAppVersion()
         const userId = this.getUserId()
 
-        let userAgent = `Incyclist/${version}`
+        // ForkyCyclist identifies itself to OpenStreetMap (usage policy: honest, identifiable client)
+        let userAgent = `ForkyCyclist/${version} (${FORKYCYCLIST_URL})`
         if (userId) {
             try {
                 const crypto = this.getBindings()?.crypto
@@ -73,7 +75,7 @@ export class OverpassApi extends AppApiBase {
 
         return {
             'User-Agent': userAgent,
-            'Referer': 'https://incyclist.com'
+            'Referer': FORKYCYCLIST_URL
         }
     }
 
