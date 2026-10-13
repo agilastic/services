@@ -186,10 +186,10 @@ export class DevicePairingService  extends IncyclistService{
                 this.emit('page-ready')
             }
             else {
-                this.run()    
+                this.run().catch( err=>{ this.logError(err,'start') })
             }
-            
-    
+
+
         }
         catch (err) { // istanbul ignore next
             this.logError(err,'start')
@@ -355,7 +355,7 @@ export class DevicePairingService  extends IncyclistService{
                 if( devices.length>0)
                     await this.stopAdaptersWithCapability(capability)
 
-                this.stopPairing()
+                await this.stopPairing()
                 this.emitStateChange({capabilities:this.state.capabilities})
 
                 if( devices.length>0)
@@ -366,16 +366,17 @@ export class DevicePairingService  extends IncyclistService{
 
             this.deviceSelectState = {capability, devices:available}
 
-            if (devices.length===0) {                
-                startScan()                    
+            if (devices.length===0) {
+                startScan().catch( err=>{ this.logError(err, 'startDeviceSelection') })
             }
-            else {              
+            else {
 
                 this.pauseScanDelay()
                   .then( ()=> {
-                    if (this.deviceSelectState) 
-                        startScan()
+                    if (this.deviceSelectState)
+                        return startScan()
                 })
+                  .catch( err=>{ this.logError(err, 'startDeviceSelection') })
             }
 
             return this.deviceSelectState
@@ -546,7 +547,7 @@ export class DevicePairingService  extends IncyclistService{
             this.getDeviceConfiguration().disableCapability(capability,true)
 
             if (adapater?.isStarted()) {
-                this.restart()
+                this.restart().catch( err=>{ this.logError(err, 'unselectDevices') })
             }
 
         }
@@ -631,7 +632,7 @@ export class DevicePairingService  extends IncyclistService{
             clearTimeout(this.state.check?.to)
         delete this.state.check;
 
-        this.run()
+        this.run().catch( err=>{ this.logError(err, 'restartPair') })
     }
 
     protected async restart() {
@@ -679,12 +680,12 @@ export class DevicePairingService  extends IncyclistService{
             await this.rideService.stop()
 
             await sleep(500)
-            this.run();
+            this.run().catch( err=>{ this.logError(err, 'restart') })
         }
 
         if (this.state.waiting) {
             this.state.waiting = false;
-            this.run()
+            this.run().catch( err=>{ this.logError(err, 'restart') })
         }
     }
 
@@ -764,11 +765,11 @@ export class DevicePairingService  extends IncyclistService{
             }
             else {
                 this.getDeviceConfiguration().once('initialized' ,(capabilitiesLoaded:DeviceConfigurationInfo, interfacesLoaded:Array<InterfaceSetting>)=>{
-                    this.onConfigLoaded(capabilitiesLoaded,interfacesLoaded)
+                    this.onConfigLoaded(capabilitiesLoaded,interfacesLoaded).catch( err=>{ this.logError(err,'waitForInit') })
                     done()
                 })
-                this.getDeviceConfiguration().init()
-    
+                this.getDeviceConfiguration().init().catch( err=>{ this.logError(err,'waitForInit') })
+
             }
             
             
@@ -896,14 +897,16 @@ export class DevicePairingService  extends IncyclistService{
             
             if (settings.enabled && !current.enabled) {
                 const {port,protocol} = settings
-                this.access.enableInterface(ifName,undefined, {port:Number(port),protocol,autoConnect:true})            
+                this.access.enableInterface(ifName,undefined, {port:Number(port),protocol,autoConnect:true})
+                    .catch( err=>{ this.logError(err,'onInterfaceConfigChanged()') })
 
                 this.selectFromInterface(ifName)
 
-    
+
             }
-            else if (!settings.enabled && current.enabled) {    
-                this.access.disableInterface(ifName)            
+            else if (!settings.enabled && current.enabled) {
+                this.access.disableInterface(ifName)
+                    .catch( err=>{ this.logError(err,'onInterfaceConfigChanged()') })
                 this.unselectOnInterface(ifName);
                 this.unselectDisabledInterfaces()
     
@@ -926,13 +929,13 @@ export class DevicePairingService  extends IncyclistService{
             this.emitStateChange()
 
 
-            this.restart();            
+            this.restart().catch( err=>{ this.logError(err,'onInterfaceConfigChanged()') })
 
         }
         catch (err) { // istanbul ignore next
             this.logError(err,'onInterfaceConfigChanged()')
         }
-   
+
     }
 
     protected mergeState(current,update) {
@@ -1015,10 +1018,10 @@ export class DevicePairingService  extends IncyclistService{
                 }
 
                 if (restartScan) {
-                    this.restart()
+                    this.restart().catch( err=>{ this.logError(err,'onInterfaceStateChanged()') })
                 }
                 if (restartPair && this.isInterfaceInUse(ifName)) {
-                    this.restartPair();
+                    this.restartPair().catch( err=>{ this.logError(err,'onInterfaceStateChanged()') })
                 }
 
                 this.emitStateChange( {interfaces:this.state.interfaces})
@@ -1058,7 +1061,7 @@ export class DevicePairingService  extends IncyclistService{
               
                         current.state = 'disconnected';
                         this.emitStateChange({ interfaces: this.state.interfaces });
-                        this.reconnectInterface(ifName,1000);
+                        this.reconnectInterface(ifName,1000).catch( err=>{ this.logError(err,'reconnectInterface') })
                 }
 
             }
@@ -1710,7 +1713,7 @@ export class DevicePairingService  extends IncyclistService{
 
             await sleep(this.getPairingRetryDelay());
             if (!this.state.scan)
-                this.run();
+                this.run().catch( err=>{ this.logError(err,'startPairing') })
         }
 
 
@@ -1810,7 +1813,7 @@ export class DevicePairingService  extends IncyclistService{
 
                 if ( !this.isPairing() && (!this.isScanning()  || this.state.scan.preparing===preparing)) {
                     delete this.state.scan
-                    this.run()
+                    this.run().catch( err=>{ this.logError(err,'startScanning') })
                 }
             }, 1000);
 
@@ -1868,8 +1871,8 @@ export class DevicePairingService  extends IncyclistService{
         if (!props.enforcedScan) {
 
             this.cleanupScan()
-            await sleep(500)            
-            this.run()
+            await sleep(500)
+            this.run().catch( err=>{ this.logError(err,'startScanning') })
         }
         
 
@@ -2245,7 +2248,7 @@ export class DevicePairingService  extends IncyclistService{
         if (stop) {
             if (wasScanning)
                 await this.stopAdaptersWithCapability(this.settings.capabilityForScan)
-            this.run()
+            this.run().catch( err=>{ this.logError(err,'_stopDeviceSelection') })
         }
     }
 
