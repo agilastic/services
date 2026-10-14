@@ -411,7 +411,7 @@ describe('RoutesDbLoader',()=>{
                     return new Promise( done => { finishFirstWrite = done })
                 return Promise.resolve()
             })
-            loaderObj.writeDetails = jest.fn()
+            loaderObj.writeDetails = jest.fn().mockResolvedValue(undefined)
             loaderObj.tsLastWrite = undefined   // no throttling from the initial load
 
             const [r1,r2] = routes

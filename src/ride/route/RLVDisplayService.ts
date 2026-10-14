@@ -9,7 +9,7 @@ import { correctDistanceValues, getNextVideoId, hasNextVideo, RouteListService, 
 import { Route } from "../../routes/base/model/route";
 import { RouteInfoText, RoutePoint } from "../../routes/base/types";
 import { distanceBetween } from "../../utils/geo";
-import { VideoConversion, VideoSyncHelper, resolvePlaybackUrl } from "../../video";
+import { VideoConversion, VideoSyncHelper, isAudibleRate, resolvePlaybackUrl } from "../../video";
 import { CurrentPosition, CurrentRideDisplayProps, InfotextDisplayProps, OverlayDisplayProps, RLVDisplayProps, VideoDisplayProps } from "../base";
 import { RouteDisplayService } from "./RouteDisplayService";
 
@@ -50,6 +50,8 @@ export class RLVDisplayService extends RouteDisplayService {
     protected videos: Array<VideoState>
     protected offset: number
     protected isInitialized: boolean
+    /** false while the playback rate is outside the range in which the audio sounds natural */
+    protected audibleRate: boolean = true
     protected infotext?: InfotextDisplayProps
     protected videosInitialized: boolean = false
     protected startTime: number
@@ -75,12 +77,13 @@ export class RLVDisplayService extends RouteDisplayService {
     initView(): void {
         this.currentVideo = undefined
         this.videos = []
+        this.audibleRate = true
         delete this.startTime
 
         this.addVideo(this.getRouteList().getRideRoute(), true).then( ()=>{
             this.videosInitialized = true
             this.emit('state-update')
-        })
+        }).catch( err=>{ this.logError(err,'initView') })
 
         this.isInitialized = true
         this.offset = 0
@@ -229,7 +232,7 @@ export class RLVDisplayService extends RouteDisplayService {
                 startTime,
                 autoConvert,
                 info:this.getInfotextDisplayProps(),
-                muted: !this.isVideoSoundEnabled(),
+                muted: !this.isVideoAudible(this.currentVideo),
                 loop: this.isLoopEnabled() ? true : undefined,
                 playback: this.currentVideo?.playback,
                 observer: this.currentVideo?.observer,
@@ -262,7 +265,7 @@ export class RLVDisplayService extends RouteDisplayService {
                     hidden: !video.isCurrent,
                     info:video.isCurrent ? this.getInfotextDisplayProps() : undefined,
                     // hidden (preloaded) videos stay muted, otherwise their sound would overlap
-                    muted: !(video.isCurrent && this.isVideoSoundEnabled()),
+                    muted: !(video.isCurrent && this.isVideoAudible(video)),
                     playback: video.playback,
                     observer: video.observer,
                     onLoaded: (bufferedTime: number) => { this.onVideoLoaded(bufferedTime, video) },
@@ -626,6 +629,20 @@ export class RLVDisplayService extends RouteDisplayService {
     protected onVideoPlayBackUpdate(time:number, rate:number,e, video:VideoState = this.currentVideo) {
         video.syncHelper.onVideoPlaybackUpdate(time,rate,e)
         this.checkInfotextDisplayProps(time)
+        if (video===this.currentVideo)
+            this.checkAudibleRate(rate)
+    }
+
+    // the audio is muted at extreme playback rates (see isAudibleRate) - the UI only needs to be
+    // updated when this changes and sound is enabled at all
+    protected checkAudibleRate(rate:number):void {
+        const audible = isAudibleRate(rate, this.audibleRate)
+        if (audible===this.audibleRate)
+            return
+
+        this.audibleRate = audible
+        if (this.isVideoSoundEnabled())
+            this.emit('state-update')
     }
 
     protected onVideoEnded(video:VideoState = this.currentVideo) { 
@@ -745,6 +762,25 @@ export class RLVDisplayService extends RouteDisplayService {
         return resolvePlaybackUrl(url)
     }
 
+    // sound is played if the user enabled it, the playback rate is in the audible range and the
+    // video actually has sound (converted videos only have it if the platform can stream audio)
+    protected isVideoAudible(video?:VideoState): boolean {
+        if (!this.isVideoSoundEnabled() || !this.audibleRate)
+            return false
+        if (video?.playback==='converted')
+            return this.isConvertedAudioSupported()
+        return true
+    }
+
+    protected isConvertedAudioSupported(): boolean {
+        try {
+            return this.getBindings()?.video?.isConvertAudioSupported?.() ?? false
+        }
+        catch {
+            return false
+        }
+    }
+
     protected isVideoSoundEnabled(): boolean {
         return this.getUserSettings().get('preferences.video.sound', false) === true
     }
@@ -812,7 +848,7 @@ export class RLVDisplayService extends RouteDisplayService {
             return false
         }
 
-        this.addVideo( nextRoute, false,current)
+        this.addVideo( nextRoute, false,current).catch( err=>{ this.logError(err,'checkForAdditionalVideos') })
         return true
 
     }

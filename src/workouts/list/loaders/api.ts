@@ -43,7 +43,7 @@ export class WorkoutsApiLoader extends Loader {
                     const fromDB = this.getFromDB(id)
                     if (!fromDB || fromDB.hash!==data.hash) {
                         this.loadObserver.emit( fromDB?  'workout.updated' : 'workout.added', data)
-                        this.save(record)
+                        this.save(record).catch( ()=>{ /* best-effort: no logging infra in this loader */ })
                     }
                 })
             }
@@ -54,8 +54,8 @@ export class WorkoutsApiLoader extends Loader {
             this.loadObserver.emit('done')
             await waitNextTick()
             delete this.loadObserver
-           
-        });
+
+        }).catch( ()=>{ /* best-effort: no logging infra in this loader */ });
 
         return this.loadObserver
         
